@@ -1,3 +1,5 @@
+import { createPlayerPresentation } from '../services/playerPresentation.js';
+import { isIOS } from '../utils/platform.js';
 import { getPlayerButtons } from '../services/playerPreferences.js';
 /**
  * components/playerSheet.js
@@ -29,39 +31,35 @@ export function initPlayerSheet() {
   const videoHost = $("#videoHost");
   videoHost.appendChild(audioEl);
   const fullscreenBtn = $("#sheetFullscreenBtn");
-  let expanded=false, nativeEntered=false, fullscreenRevision=0;
-  function setPageFill(enabled) {
-    expanded=enabled;modal.classList.toggle('page-fill',enabled);
-    fullscreenBtn.dataset.i18n=enabled?'player.exitFullscreen':'player.fullscreen';
-    fullscreenBtn.textContent=t(fullscreenBtn.dataset.i18n);
-    fullscreenBtn.setAttribute('aria-pressed',String(enabled));
+  let expanded = false;
+  const presentationHint = el('p', { class: 'presentation-hint', role: 'status', hidden: true });
+  $('.player-sheet').append(presentationHint);
+  function renderPresentation(state) {
+    expanded = state.active;
+    modal.classList.toggle('page-fill', expanded);
+    modal.dataset.presentation = state.mode;
+    modal.dataset.orientationLock = state.lock;
+    const key = !expanded ? 'player.fullscreen' : state.mode === 'native' ? 'player.exitFullscreen' : 'player.exitPageFill';
+    fullscreenBtn.dataset.i18n = key;
+    fullscreenBtn.textContent = t(key);
+    fullscreenBtn.setAttribute('aria-pressed', String(expanded));
+    presentationHint.hidden = !expanded || state.pending || (state.mode === 'native' && state.lock === 'locked');
+    presentationHint.textContent = t(state.lock === 'locked' ? 'player.pageFillNotice' : isIOS() ? 'player.iosOrientationFallback' : 'player.orientationFallback');
+    // Labels change intrinsic widths even when the row itself does not resize.
+    queueMicrotask(layoutButtons);
   }
-  function fitLandscape() {
-    modal.classList.toggle('rotated-video',expanded && innerHeight>innerWidth);
-    layoutButtons();
-  }
-  function unlock() {try {screen.orientation?.unlock();} catch {}}
-  function leaveExpanded() {
-    ++fullscreenRevision;nativeEntered=false;unlock();setPageFill(false);fitLandscape();
-    if(document.fullscreenElement===modal) void document.exitFullscreen().catch(()=>{});
-  }
-  fullscreenBtn.addEventListener('click',async()=>{
-    if(expanded) {leaveExpanded();return;}
-    const revision=++fullscreenRevision;setPageFill(true);fitLandscape();
-    try {
-      await modal.requestFullscreen();
-      if(revision!==fullscreenRevision) {
-        if(document.fullscreenElement===modal) await document.exitFullscreen();
-        return;
-      }
-      nativeEntered=true;
-    } catch { /* Preserve custom controls with page fill. */ }
-    if(revision!==fullscreenRevision) return;
-    try {await screen.orientation.lock('landscape');} catch { /* CSS rotation fallback */ }
-    if(revision!==fullscreenRevision) {unlock();return;}
-    fitLandscape();
+  const presentation = createPlayerPresentation({ element: modal, document, orientation: screen.orientation, onChange: renderPresentation });
+  function fitLandscape() { layoutButtons(); }
+  function leaveExpanded() { const result = presentation.leave(); fitLandscape(); return result; }
+  fullscreenBtn.addEventListener('click', () => {
+    if (expanded) leaveExpanded(); else void presentation.enter();
   });
-  window.addEventListener('resize',fitLandscape);
+  window.addEventListener('resize', fitLandscape);
+  window.addEventListener('pagehide', leaveExpanded);
+  window.addEventListener('hashchange', leaveExpanded);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) leaveExpanded(); });
+  // Router navigation also occurs without a URL change.
+  document.addEventListener('click', event => { if (event.target.closest('.menu-item')) leaveExpanded(); });
   const backdrop = $("#playerSheetBackdrop");
   const closeBtn = $("#playerSheetClose");
   const titleEl = $("#sheetTitle");
@@ -132,7 +130,7 @@ export function initPlayerSheet() {
     subtitlesBtn.textContent=t(subtitlesBtn.dataset.i18n);
     const order=[shuffleBtn,prevBtn,playBtn,nextBtn,repeatBtn,favBtn,fullscreenBtn,variantBtn,queueBtn,subtitlesBtn];
     for(const [key,button] of Object.entries(buttons)) {
-      button.hidden=!prefs[key] || (key==='variant' && video) || (key==='fullscreen' && !video);
+      button.hidden=!prefs[key] || (key==='variant' && video) || (key==='fullscreen' && !video && !expanded);
     }
     moreBtn.hidden=true;
     for(const button of order) (wide || [shuffleBtn,prevBtn,playBtn,nextBtn,repeatBtn].includes(button)?controls:secondary).append(button);
@@ -161,7 +159,7 @@ export function initPlayerSheet() {
   const observer=new ResizeObserver(layoutButtons);
   observer.observe(videoHost);observer.observe(controls);
   document.fonts?.ready.then(layoutButtons);
-  onLanguageChange(()=>{setPageFill(expanded);layoutButtons();});
+  onLanguageChange(()=>{renderPresentation(presentation.snapshot());layoutButtons();});
   modal.addEventListener('pointerdown',e=>{
     keyboardFocus=false;
     if(!e.target.closest('#sheetMorePanel,#sheetMoreBtn,.sheet-panel,#sheetQueueBtn')) dismissMenus();
@@ -175,7 +173,7 @@ export function initPlayerSheet() {
   modal.addEventListener('focusout',()=>queueMicrotask(()=>{keyboardFocus=keyboardFocus && !!document.activeElement?.closest(focusSelector);reveal();}));
   for(const event of ['play','pause','ended']) audioEl.addEventListener(event,reveal);
   document.addEventListener('fullscreenchange',()=>{
-    if(nativeEntered && document.fullscreenElement!==modal) leaveExpanded();else fitLandscape();
+    presentation.fullscreenChanged(); fitLandscape();
     reveal();
   });
 
@@ -195,11 +193,15 @@ export function initPlayerSheet() {
     layoutButtons();
   }
 
-  function close() {
+  async function close() {
     endDrag({pointerId:dragPointerId});
     dismissMenus();keyboardFocus=false;clearTimeout(hideTimer);
     modal.classList.remove('controls-hidden');
-    leaveExpanded();
+    const nativeExit = document.fullscreenElement === modal;
+    const leaving = leaveExpanded();
+    if (nativeExit) await leaving;
+    // Keep exit controls reachable if the browser refuses to leave fullscreen.
+    if (presentation.snapshot().active) { closeBtn.focus(); reveal(); return; }
     lyrics.close();
     modal.classList.remove("open");
     modal.setAttribute("aria-hidden", "true");
@@ -283,6 +285,7 @@ export function initPlayerSheet() {
   favBtn.addEventListener("click", () => { const s = getCurrentSong(); if (s) toggleFavorite(s); });
 
   on("trackchange", (song) => {
+    if (expanded || presentation.snapshot().pending) leaveExpanded();
     clearTimeout(errorTimer);
     errorToast.classList.remove("visible");
     endDrag({pointerId:dragPointerId});
@@ -312,7 +315,7 @@ export function initPlayerSheet() {
   // ---- seek (pointer drag, same pattern as the mini player) ----
   function ratioFromEvent(e) {
     const rect = progressTrack.getBoundingClientRect();
-    return Math.min(1, Math.max(0, modal.classList.contains('rotated-video') ? (e.clientY-rect.top)/rect.height : (e.clientX-rect.left)/rect.width));
+    return Math.min(1, Math.max(0, (e.clientX-rect.left)/rect.width));
   }
   progressTrack.addEventListener("pointerdown", (e) => {
     isDragging = true;

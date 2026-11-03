@@ -6,7 +6,7 @@
    so there is no user media to precache here.
    ========================================================= */
 
-const CACHE_NAME = "lumen-shell-v37";
+const CACHE_NAME = "lumen-shell-v38";
 
 const APP_SHELL = [
   "./",
@@ -18,6 +18,7 @@ const APP_SHELL = [
   "./src/lyrics/lrc.mjs",
   "./src/database/db.js",
   "./src/services/audioEngine.js",
+  "./src/services/playerPresentation.js",
   "./src/services/mediaDiagnostics.js",
   "./src/services/mediaTimeline.js",
   "./src/components/mediaDiagnostics.js",

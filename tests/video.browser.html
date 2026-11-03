@@ -44,19 +44,40 @@ for(const [width,height] of [[768,1024],[820,1180],[1024,768],[1280,800]]){
 frame.style.width='600px';frame.style.height='900px';await wait(150);
 check(d.querySelector('#lyricsBody').getBoundingClientRect().right>=d.querySelector('#videoHost').getBoundingClientRect().right-1,'medium portrait overlay anchors right');
 frame.style.width='390px';frame.style.height='844px';await wait(150);
-// Denied native APIs still produce a button-driven landscape surface.
+// Denied native fullscreen and orientation never rotate the HTML surface.
 const request=d.querySelector('#playerSheetModal').requestFullscreen;
 d.querySelector('#playerSheetModal').requestFullscreen=()=>Promise.reject(new Error('denied'));
 d.querySelector('#sheetFullscreenBtn').click();await wait(120);
-check(d.querySelector('#playerSheetModal').classList.contains('rotated-video'),'portrait lock gets CSS landscape');
-const rotated=d.querySelector('.player-sheet').getBoundingClientRect();
-check(Math.abs(rotated.width-390)<2&&Math.abs(rotated.height-844)<2,'rotated sheet fills portrait viewport');
-const rotatedTrack=track.getBoundingClientRect();
-track.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,clientX:rotatedTrack.left,clientY:rotatedTrack.top+rotatedTrack.height*.7,pointerId:7,pointerType:'touch'}));
+check(!d.querySelector('#playerSheetModal').classList.contains('rotated-video'),'fallback never applies sideways CSS rotation');
+check(d.querySelector('#playerSheetModal').dataset.presentation==='page-fill','denied native request explicitly reports page fill');
+check(d.querySelector('#sheetFullscreenBtn').textContent==='Exit page fill','page fill has honest exit label');
+check(!d.querySelector('.presentation-hint').hidden&&d.querySelector('.presentation-hint').textContent.includes('external display'),'orientation failure presents persistent mirroring guidance');
+const filled=d.querySelector('.player-sheet').getBoundingClientRect();
+check(Math.abs(filled.width-d.documentElement.clientWidth)<2&&Math.abs(filled.height-844)<2,'unrotated page fill fits portrait viewport');
+const fillTrack=track.getBoundingClientRect();
+track.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,clientX:fillTrack.left+fillTrack.width*.7,clientY:fillTrack.top,pointerId:7,pointerType:'touch'}));
 track.dispatchEvent(new w.PointerEvent('pointerup',{pointerId:7}));
-check(Math.abs(engine.audioEl.currentTime/engine.audioEl.duration-.7)<.03,'rotated touch seek maps vertical screen coordinate');
+check(Math.abs(engine.audioEl.currentTime/engine.audioEl.duration-.7)<.03,'page-fill touch seek uses horizontal screen coordinate');
 d.querySelector('#sheetFullscreenBtn').click();await wait(100);
-check(!d.querySelector('#playerSheetModal').classList.contains('rotated-video')&&!d.querySelector('#playerSheetModal').classList.contains('page-fill'),'button restores portrait');
+check(!d.querySelector('#playerSheetModal').classList.contains('page-fill')&&d.querySelector('.presentation-hint').hidden,'button clears page fill and guidance');
+// UA overrides only exercise guidance selection; these are not iOS device tests.
+const guidanceI18n=await w.eval('import("/src/services/i18nService.js")');
+Object.defineProperty(w.navigator,'userAgent',{value:'iPhone Safari',configurable:true});
+for(const lang of ['en','zh-CN','fa']){
+ await guidanceI18n.setLanguage(lang);d.querySelector('#sheetFullscreenBtn').click();await wait(100);
+ check(!d.querySelector('.presentation-hint').hidden&&d.querySelector('.presentation-hint').textContent.includes('AirPlay'),'localized iOS guidance fixture '+lang);
+ check(d.querySelector('#sheetFullscreenBtn').textContent===guidanceI18n.t('player.exitPageFill'),'localized page-fill exit '+lang);
+ d.querySelector('#sheetFullscreenBtn').click();await wait(50);
+}
+delete w.navigator.userAgent;await guidanceI18n.setLanguage('en');
+// Repeat entry, navigation and track change all clean up presentation.
+for(const event of ['hashchange','pagehide']){
+ d.querySelector('#sheetFullscreenBtn').click();await wait(100);w.dispatchEvent(new w.Event(event));
+ check(!d.querySelector('#playerSheetModal').classList.contains('page-fill'),'cleanup on '+event);w.dispatchEvent(new w.Event('pageshow'));
+}
+d.querySelector('#sheetFullscreenBtn').click();await wait(100);
+await engine.selectSong(songs.find(s=>s.id!==video.id),songs);await engine.selectSong(video,songs);await wait(100);engine.audioEl.pause();
+check(!d.querySelector('#playerSheetModal').classList.contains('page-fill'),'track change clears presentation');
 d.querySelector('#playerSheetModal').requestFullscreen=request;
 frame.style.width='1000px';frame.style.height='600px';await wait(150);
 await wait(100);
