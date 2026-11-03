@@ -14,11 +14,11 @@ All lyric lines use 18px, weight 600, line-height 1.85 and no transform. Current
 
 ## Fullscreen boundary
 
-This PR leaves native fullscreen requests, orientation locking, page fill and CSS rotation fallback unchanged. The rule uses the player's actual logical content width in those states. The legacy landscape-video class selects video-control styling, not orientation. Existing portrait rotation fallback rotates the entire player: logical right can appear vertically on the physical screen. It does not rotate the OS or AirPlay receiver. That limitation belongs to #6 / PR #9, which this revision does not modify.
+Merged #7 established the width/typography rules above. #6 / PR #9 removes CSS rotation: native fullscreen preserves current orientation and failure uses upright page fill. Only explicit user intent can request a landscape lock in an appropriate native context. All modes follow actual content width. The legacy landscape-video class selects video-control styling, not orientation. See [fullscreen and orientation](VIDEO_FULLSCREEN.md).
 
 ## Automated coverage
 
-Video browser tests inspect computed styles and bounding boxes at 390x844, 568x320, 844x390, 768x1024, 820x1180, 1024x768 and 1280x800. Opposite viewport orientations also use identical constrained content widths of 655/656/657/760px with asymmetric 40/44px safe-area variables. Checks cover identical modes at identical widths, the boundary, minimum video/lyric widths, no overlap or stacking, RTL physical-right placement, control boundaries, fixed typography, natural wrapping, word colors, page fill and rotated seeking. Base checks cover fixed audio-lyric typography in light/dark themes and updated offline shell caching. Node coverage retains LRC/Enhanced LRC synchronization regressions.
+Video browser tests inspect computed styles and bounding boxes at 390x844, 568x320, 844x390, 768x1024, 820x1180, 1024x768 and 1280x800. Opposite viewport orientations also use identical constrained content widths of 655/656/657/760px with asymmetric 40/44px safe-area variables. Checks cover identical modes at identical widths, the boundary, minimum video/lyric widths, no overlap or stacking, RTL physical-right placement, control boundaries, fixed typography, natural wrapping, word colors, upright page fill (native/lock outcomes use explicitly labelled API mocks). Base checks cover fixed audio-lyric typography in light/dark themes and updated offline shell caching. Node coverage retains LRC/Enhanced LRC synchronization regressions.
 
 Desktop checks do not establish iOS Safari, installed-PWA, audible-output or AirPlay compatibility.
 
@@ -26,5 +26,5 @@ Desktop checks do not establish iOS Safari, installed-PWA, audible-output or Air
 
 - iPad Safari and installed PWA: portrait/landscape, Split View and resizing around 656px while playing/paused. Confirm separate right lyrics when sufficient, hidden lyrics otherwise, and undistorted video.
 - iPhone Safari: narrow portrait hides lyrics; landscape follows usable width. Check safe areas, subtitles, More/queue, touch seeking and readable fixed 18px multilingual lyrics.
-- Repeated fullscreen/page-fill entry and exit: inspect layout and typography. Record the unchanged rotation fallback limitation for #6.
+- Repeated native fullscreen/upright page-fill entry and exit: inspect layout/typography, explicit landscape requests, failure, Follow device and manual rotation; confirm no CSS rotation.
 - Actual AirPlay SCREEN MIRRORING: portrait/landscape entry, exit and repeat; observe the physical external display orientation, lyrics and audible output. Desktop results cannot replace these checks. Use HTTPS for full PWA acceptance; HTTP LAN is suitable for basic visual testing only.

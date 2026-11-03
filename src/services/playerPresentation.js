@@ -1,59 +1,66 @@
-// Fullscreen and orientation are separate capabilities. Never rotate HTML to
-// imitate a physical display change (in particular, AirPlay screen mirroring).
-export function createPlayerPresentation({ element, document, orientation, onChange }) {
-  let active = false, entering = false, exiting = false, revision = 0;
-  let exitTask = null;
+// Viewport orientation, native fullscreen and receiver output are independent.
+// Enter preserves orientation; only explicit user intent may request a lock.
+export function createPlayerPresentation({ element, document, orientation, isLandscape = () => false, onChange }) {
+  let active = false, entering = false, locking = false, exiting = false;
+  let revision = 0, ownsLock = false, exitTask = null;
   let mode = 'inline', lock = 'none';
-  const snapshot = () => ({ active, pending: entering || exiting, mode, lock });
+  const snapshot = () => ({ active, pending: entering || locking || exiting, mode, lock });
   const publish = () => onChange(snapshot());
-  const unlock = () => { try { orientation?.unlock?.(); } catch {} };
-  const exitNative = () => {
+  function releaseOwnedLock() {
+    if (!ownsLock) return true;
+    try { orientation.unlock(); ownsLock = false; return true; }
+    catch { return false; /* Retain ownership so an explicit release can retry. */ }
+  }
+  function exitNative() {
     if (exitTask) return exitTask;
     if (document.fullscreenElement !== element) return Promise.resolve();
     exiting = true; publish();
-    exitTask = Promise.resolve().then(() => document.exitFullscreen())
-      .catch(() => {
-        // A refused exit must not advertise an inline state while still native.
-        if (document.fullscreenElement === element) {
-          active = true; mode = 'native'; lock = 'failed';
-        }
-      }).finally(() => { exiting = false; exitTask = null; publish(); });
+    exitTask = Promise.resolve().then(() => document.exitFullscreen()).catch(() => {
+      if (document.fullscreenElement === element) { active = true; mode = 'native'; }
+    }).finally(() => { exiting = false; exitTask = null; publish(); });
     return exitTask;
-  };
-
+  }
   function leave() {
-    ++revision;
-    active = false; mode = 'inline'; lock = 'none';
-    unlock(); publish();
+    ++revision; active = false; mode = 'inline'; lock = 'none';
+    releaseOwnedLock(); publish();
     return exitNative();
   }
-
   async function enter() {
-    // Serialize requests: a late lock/unlock must never affect a newer entry.
-    if (active || entering || exiting) return;
+    if (active || entering || locking || exiting) return;
     const token = ++revision;
-    active = true; entering = true; mode = 'page-fill'; lock = 'pending'; publish();
+    active = true; entering = true; mode = 'page-fill'; lock = 'none'; publish();
     try {
-      try { await element.requestFullscreen(); } catch { /* Keep HTML lyrics in page fill. */ }
+      try { await element.requestFullscreen(); } catch { /* Upright page fill keeps HTML lyrics. */ }
       if (token !== revision) { await exitNative(); return; }
-      mode = document.fullscreenElement === element ? 'native' : 'page-fill'; publish();
-      if (typeof orientation?.lock !== 'function') lock = 'unsupported';
-      else {
-        try { await orientation.lock('landscape'); lock = 'locked'; }
-        catch { lock = 'failed'; unlock(); }
-      }
-      if (token !== revision) { unlock(); lock = 'none'; return; }
-      publish();
-    } finally {
-      entering = false; publish();
-    }
+      mode = document.fullscreenElement === element ? 'native' : 'page-fill';
+    } finally { entering = false; publish(); }
   }
-
+  async function requestLandscape() {
+    // No device guessing, automatic retry, or lock attempt in page fill.
+    if (!active || entering || locking || exiting || document.fullscreenElement !== element || lock !== 'none' || isLandscape()) return;
+    if (typeof orientation?.lock !== 'function') { lock = 'unsupported'; publish(); return; }
+    const token = revision;
+    locking = true; lock = 'pending'; publish();
+    try {
+      await orientation.lock('landscape'); ownsLock = true;
+      if (token !== revision || document.fullscreenElement !== element) {
+        releaseOwnedLock(); lock = 'none'; return;
+      }
+      lock = 'locked';
+    } catch {
+      lock = token === revision ? 'failed' : 'none';
+    } finally { locking = false; publish(); }
+  }
+  function followDevice() {
+    if (locking || !ownsLock) return;
+    if (releaseOwnedLock()) lock = 'none';
+    publish();
+  }
   function fullscreenChanged() {
     if (document.fullscreenElement === element) {
       if (!active) void exitNative();
       else { mode = 'native'; publish(); }
-    } else if (active && mode === 'native') leave();
+    } else if (active && mode === 'native') void leave();
   }
-  return { enter, leave, fullscreenChanged, snapshot };
+  return { enter, leave, requestLandscape, followDevice, fullscreenChanged, snapshot };
 }

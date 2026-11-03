@@ -87,7 +87,7 @@ d.querySelector('#sheetFullscreenBtn').click();await wait(120);
 check(!d.querySelector('#playerSheetModal').classList.contains('rotated-video'),'fallback never applies sideways CSS rotation');
 check(d.querySelector('#playerSheetModal').dataset.presentation==='page-fill','denied native request explicitly reports page fill');
 check(d.querySelector('#sheetFullscreenBtn').textContent==='Exit page fill','page fill has honest exit label');
-check(!d.querySelector('.presentation-hint').hidden&&d.querySelector('.presentation-hint').textContent.includes('external display'),'orientation failure presents persistent mirroring guidance');
+check(!d.querySelector('.presentation-hint').hidden&&d.querySelector('.presentation-hint').textContent.includes('external display'),'page fill presents persistent mirroring guidance');
 const filled=d.querySelector('.player-sheet').getBoundingClientRect();
 check(Math.abs(filled.width-d.documentElement.clientWidth)<2&&Math.abs(filled.height-844)<2,'unrotated page fill fits portrait viewport');
 const fillTrack=track.getBoundingClientRect();
@@ -96,16 +96,62 @@ track.dispatchEvent(new w.PointerEvent('pointerup',{pointerId:7}));
 check(Math.abs(engine.audioEl.currentTime/engine.audioEl.duration-.7)<.03,'page-fill touch seek uses horizontal screen coordinate');
 d.querySelector('#sheetFullscreenBtn').click();await wait(100);
 check(!d.querySelector('#playerSheetModal').classList.contains('page-fill')&&d.querySelector('.presentation-hint').hidden,'button clears page fill and guidance');
-// UA overrides only exercise guidance selection; these are not iOS device tests.
+layout('upright narrow page fill');
+// All platforms get the same localized guidance, without device detection.
 const guidanceI18n=await w.eval('import("/src/services/i18nService.js")');
-Object.defineProperty(w.navigator,'userAgent',{value:'iPhone Safari',configurable:true});
 for(const lang of ['en','zh-CN','fa']){
  await guidanceI18n.setLanguage(lang);d.querySelector('#sheetFullscreenBtn').click();await wait(100);
- check(!d.querySelector('.presentation-hint').hidden&&d.querySelector('.presentation-hint').textContent.includes('AirPlay'),'localized iOS guidance fixture '+lang);
+ check(!d.querySelector('.presentation-hint').hidden&&d.querySelector('.presentation-hint').textContent.includes('AirPlay'),'localized device-independent guidance '+lang);
  check(d.querySelector('#sheetFullscreenBtn').textContent===guidanceI18n.t('player.exitPageFill'),'localized page-fill exit '+lang);
  d.querySelector('#sheetFullscreenBtn').click();await wait(50);
 }
-delete w.navigator.userAgent;await guidanceI18n.setLanguage('en');
+await guidanceI18n.setLanguage('en');
+// Mock native state/API outcomes only; not native iOS or AirPlay verification.
+const playerModal=d.querySelector('#playerSheetModal'),orientationAction=d.querySelector('#sheetOrientationBtn');
+let nativeElement=null,lockCalls=0,unlockCalls=0;
+const savedExit=d.exitFullscreen,savedLock=Object.getOwnPropertyDescriptor(w.screen.orientation,'lock'),savedUnlock=Object.getOwnPropertyDescriptor(w.screen.orientation,'unlock');
+Object.defineProperty(d,'fullscreenElement',{configurable:true,get:()=>nativeElement});
+playerModal.requestFullscreen=async()=>{nativeElement=playerModal;d.dispatchEvent(new w.Event('fullscreenchange'));};
+d.exitFullscreen=async()=>{nativeElement=null;d.dispatchEvent(new w.Event('fullscreenchange'));};
+Object.defineProperty(w.screen.orientation,'lock',{configurable:true,value:async()=>{lockCalls++;}});
+Object.defineProperty(w.screen.orientation,'unlock',{configurable:true,value:()=>{unlockCalls++;}});
+for(const [width,height] of [[768,1024],[1024,768],[390,844],[844,390]]){
+ frame.style.width=width+'px';frame.style.height=height+'px';await wait(100);
+ d.querySelector('#sheetFullscreenBtn').click();await wait(100);
+ check(playerModal.dataset.presentation==='native','mock native fullscreen confirms actual element '+width+'x'+height);
+ check(lockCalls===0,'entry preserves orientation without category guessing '+width+'x'+height);
+ check(w.getComputedStyle(sheetNode).transform==='none','genuine viewport never gains CSS rotation '+width+'x'+height);
+ layout('mock native '+width+'x'+height);
+ // Resize within fullscreen models viewport changes; does not rotate the OS.
+ frame.style.width=height+'px';frame.style.height=width+'px';await wait(100);layout('manual viewport change '+height+'x'+width);
+ check(lockCalls===0,'manual viewport change never initiates a lock');
+ if(width===390){
+  d.querySelector('#playerSheetClose').click();await wait(100);
+  check(!playerModal.classList.contains('open')&&nativeElement===null,'close exits mock native fullscreen');
+  d.querySelector('#miniExpand').click();await wait(100);
+ }else{d.querySelector('#sheetFullscreenBtn').click();await wait(100);}
+}
+frame.style.width='768px';frame.style.height='1024px';await wait(100);
+d.querySelector('#sheetFullscreenBtn').click();await wait(100);
+check(!orientationAction.hidden,'explicit landscape action available in native portrait');
+orientationAction.click();await wait(100);
+check(lockCalls===1&&playerModal.dataset.orientationLock==='locked','explicit user action requests one landscape lock');
+orientationAction.click();await wait(100);
+check(unlockCalls===1&&playerModal.dataset.orientationLock==='none','follow device releases only owned lock');
+Object.defineProperty(w.screen.orientation,'lock',{configurable:true,value:async()=>{lockCalls++;throw Error('denied');}});
+orientationAction.click();await wait(100);
+check(lockCalls===2&&playerModal.dataset.orientationLock==='failed','mock lock rejection is explicit');
+check(!d.querySelector('.presentation-hint').hidden&&orientationAction.hidden,'failed lock offers manual guidance without retry loop');
+frame.style.width='1024px';frame.style.height='768px';await wait(100);layout('failed lock genuine landscape');
+check(lockCalls===2&&unlockCalls===1,'resize and failed request do not retry or unlock unrelated state');
+// Browser-native exit bypasses the app button.
+nativeElement=null;d.dispatchEvent(new w.Event('fullscreenchange'));await wait(100);
+check(!playerModal.classList.contains('page-fill'),'mock native exit clears expanded state');
+delete d.fullscreenElement;d.exitFullscreen=savedExit;
+if(savedLock)Object.defineProperty(w.screen.orientation,'lock',savedLock);else delete w.screen.orientation.lock;
+if(savedUnlock)Object.defineProperty(w.screen.orientation,'unlock',savedUnlock);else delete w.screen.orientation.unlock;
+playerModal.requestFullscreen=()=>Promise.reject(Error('denied'));
+frame.style.width='390px';frame.style.height='844px';await wait(100);
 // Repeat entry, navigation and track change all clean up presentation.
 for(const event of ['hashchange','pagehide']){
  d.querySelector('#sheetFullscreenBtn').click();await wait(100);w.dispatchEvent(new w.Event(event));

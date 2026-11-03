@@ -5,110 +5,125 @@ const source = await readFile(new URL('../src/services/playerPresentation.js', i
 const { createPlayerPresentation } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const tick = () => new Promise(resolve => setImmediate(resolve));
-function setup({ native = true, lock = async () => {}, exit } = {}) {
+function setup({ native = true, lock = async () => {}, exit, landscape = false } = {}) {
   const calls = [], states = [];
+  const view = { landscape };
   const document = { fullscreenElement: null, async exitFullscreen() { calls.push('exit'); if (exit) await exit(); document.fullscreenElement = null; } };
   const element = { async requestFullscreen() { calls.push('request'); if (!native) throw Error('denied'); document.fullscreenElement = element; } };
   const orientation = { unlock() { calls.push('unlock'); }, ...(lock ? { lock(value) { calls.push(value); return lock(); } } : {}) };
-  const controller = createPlayerPresentation({ element, document, orientation, onChange: state => states.push(state) });
-  return { controller, element, document, calls, states };
+  const controller = createPlayerPresentation({ element, document, orientation, isLandscape: () => view.landscape, onChange: state => states.push(state) });
+  return { c: controller, element, document, orientation, calls, states, view };
 }
 
-test('native entry requests landscape after fullscreen and native exit releases lock', async () => {
-  const { controller: c, document: d, calls } = setup();
-  await c.enter();
-  assert.deepEqual(calls, ['request', 'landscape']);
-  assert.deepEqual(c.snapshot(), { active: true, pending: false, mode: 'native', lock: 'locked' });
-  d.fullscreenElement = null; c.fullscreenChanged();
-  assert.equal(c.snapshot().active, false); assert.equal(calls.at(-1), 'unlock');
+test('native fullscreen preserves current orientation and never unlocks an unrelated lock', async () => {
+  for (const landscape of [false, true]) {
+    const { c, document: d, calls } = setup({ landscape }); await c.enter();
+    assert.deepEqual(calls, ['request']);
+    assert.deepEqual(c.snapshot(), { active: true, pending: false, mode: 'native', lock: 'none' });
+    d.fullscreenElement = null; c.fullscreenChanged();
+    assert.equal(c.snapshot().active, false); assert.ok(!calls.includes('unlock'));
+  }
 });
-
-test('denied or missing native fullscreen keeps an honest page-fill state', async () => {
+test('explicit landscape request locks once in native fullscreen and exit releases only owned lock', async () => {
+  const { c, calls } = setup(); await c.enter(); await c.requestLandscape(); await c.requestLandscape();
+  assert.deepEqual(calls, ['request', 'landscape']); assert.equal(c.snapshot().lock, 'locked');
+  await c.leave(); assert.equal(calls.filter(c => c === 'unlock').length, 1);
+});
+test('already landscape viewport never requests another orientation lock', async () => {
+  const { c, calls } = setup({ landscape: true }); await c.enter(); await c.requestLandscape();
+  assert.deepEqual(calls, ['request']); assert.equal(c.snapshot().lock, 'none');
+});
+test('manual portrait/landscape changes do not trigger locking or automatic retry', async () => {
+  const { c, view, calls } = setup(); await c.enter();
+  for (const landscape of [true, false, true, false]) { view.landscape = landscape; c.fullscreenChanged(); }
+  assert.deepEqual(calls, ['request']); assert.equal(c.snapshot().mode, 'native');
+});
+test('denied and missing native fullscreen keep page fill and never attempt a lock', async () => {
   for (const missing of [false, true]) {
-    const { controller: c, element } = setup({ native: false, lock: null });
-    if (missing) delete element.requestFullscreen;
-    await c.enter();
-    assert.equal(c.snapshot().mode, 'page-fill'); assert.equal(c.snapshot().lock, 'unsupported');
-    c.leave(); assert.equal(c.snapshot().mode, 'inline');
+    const { c, element, calls } = setup({ native: false }); if (missing) delete element.requestFullscreen;
+    await c.enter(); await c.requestLandscape();
+    assert.equal(c.snapshot().mode, 'page-fill'); assert.equal(c.snapshot().lock, 'none');
+    await c.leave(); assert.ok(!calls.includes('landscape')); assert.ok(!calls.includes('unlock'));
   }
 });
-
-test('lock rejection is explicit, releases lock and retains native fullscreen', async () => {
-  const { controller: c, calls } = setup({ lock: async () => { throw Error('not supported'); } });
-  await c.enter();
+test('missing lock method is explicit only when requested in native fullscreen', async () => {
+  const { c, calls } = setup({ lock: null }); await c.enter(); await c.requestLandscape();
+  assert.equal(c.snapshot().lock, 'unsupported'); await c.leave(); assert.ok(!calls.includes('unlock'));
+});
+test('lock rejection is explicit and never unlocks an unrelated orientation state', async () => {
+  const { c, calls } = setup({ lock: async () => { throw Error('not supported'); } });
+  await c.enter(); await c.requestLandscape(); await c.requestLandscape();
   assert.equal(c.snapshot().lock, 'failed'); assert.equal(c.snapshot().mode, 'native');
-  assert.equal(calls.at(-1), 'unlock');
+  assert.equal(calls.filter(c => c === 'landscape').length, 1); assert.ok(!calls.includes('unlock'));
 });
-
-test('synchronous API exceptions degrade safely', async () => {
-  const { controller: c, element } = setup({ lock() { throw Error('lock failed'); } });
-  element.requestFullscreen = () => { throw Error('blocked'); };
-  await c.enter(); assert.equal(c.snapshot().mode, 'page-fill'); assert.equal(c.snapshot().lock, 'failed');
+test('synchronous fullscreen and lock exceptions degrade safely', async () => {
+  const { c, element } = setup(); element.requestFullscreen = () => { throw Error('blocked'); };
+  await c.enter(); assert.equal(c.snapshot().mode, 'page-fill');
+  const other = setup({ lock() { throw Error('blocked'); } });
+  await other.c.enter(); await other.c.requestLandscape(); assert.equal(other.c.snapshot().lock, 'failed');
 });
-
-test('exit while fullscreen is pending cancels late entry and permits retry', async () => {
-  const { controller: c, element, document: d, calls } = setup();
-  const request = deferred(); element.requestFullscreen = () => request.promise;
-  const entry = c.enter(); c.leave(); await c.enter(); // serialized until old request settles
-  d.fullscreenElement = element; request.resolve(); await entry;
-  assert.equal(d.fullscreenElement, null); assert.equal(c.snapshot().active, false);
-  assert.ok(!calls.includes('landscape'));
+test('close during pending fullscreen cancels late success and permits retry', async () => {
+  const { c, element, document: d, calls } = setup(); const pending = deferred();
+  element.requestFullscreen = () => pending.promise;
+  const entry = c.enter(); await c.leave(); await c.enter();
+  d.fullscreenElement = element; pending.resolve(); await entry;
+  assert.equal(d.fullscreenElement, null); assert.equal(c.snapshot().active, false); assert.ok(!calls.includes('landscape'));
   element.requestFullscreen = async () => { d.fullscreenElement = element; };
-  await c.enter(); assert.equal(c.snapshot().lock, 'locked');
+  await c.enter(); assert.equal(c.snapshot().mode, 'native');
 });
-
-test('late successful orientation lock is unlocked after close and cannot revive state', async () => {
-  const request = deferred(); const { controller: c, calls } = setup({ lock: () => request.promise });
-  const entry = c.enter(); await tick(); const leaving = c.leave();
-  request.resolve(); await entry; await leaving;
-  assert.deepEqual(c.snapshot(), { active: false, pending: false, mode: 'inline', lock: 'none' });
-  assert.equal(calls.at(-1), 'unlock');
-});
-
-test('native exit while orientation lock is pending cancels late failure', async () => {
-  const request = deferred(); const { controller: c, document: d } = setup({ lock: () => request.promise });
-  const entry = c.enter(); await tick(); d.fullscreenElement = null; c.fullscreenChanged();
-  request.reject(Error('cancelled')); await entry;
+test('late fullscreen rejection cannot restore a closed player', async () => {
+  const { c, element } = setup(); const pending = deferred(); element.requestFullscreen = () => pending.promise;
+  const entry = c.enter(); await c.leave(); pending.reject(Error('denied')); await entry;
   assert.deepEqual(c.snapshot(), { active: false, pending: false, mode: 'inline', lock: 'none' });
 });
-
-test('repeated entry and leave remain consistent and do not duplicate active requests', async () => {
-  const { controller: c, calls, document: d } = setup();
-  for (let i = 0; i < 3; i++) {
-    await c.enter(); await c.enter(); c.leave(); await tick();
-    assert.equal(c.snapshot().mode, 'inline'); assert.equal(d.fullscreenElement, null);
-  }
-  assert.equal(calls.filter(c => c === 'request').length, 3);
+test('late lock success is released after close without reviving state', async () => {
+  const pending = deferred(), { c, calls } = setup({ lock: () => pending.promise });
+  await c.enter(); const locking = c.requestLandscape(); const leaving = c.leave(); await c.enter();
+  pending.resolve(); await locking; await leaving;
+  assert.deepEqual(c.snapshot(), { active: false, pending: false, mode: 'inline', lock: 'none' });
+  assert.equal(calls.filter(c => c === 'unlock').length, 1);
 });
-
-test('failed browser exit retains an honest native state and the next leave retries', async () => {
-  let fail = true;
-  const { controller: c, document: d, element } = setup({ exit: async () => { if (fail) throw Error('denied'); } });
-  await c.enter(); c.leave(); await tick();
-  assert.equal(c.snapshot().mode, 'native'); assert.equal(c.snapshot().active, true);
-  assert.equal(d.fullscreenElement, element);
-  fail = false; c.leave(); await tick(); assert.equal(d.fullscreenElement, null);
+test('native exit cancels pending lock failure without an unrelated unlock', async () => {
+  const pending = deferred(), { c, document: d, calls } = setup({ lock: () => pending.promise });
+  await c.enter(); const locking = c.requestLandscape(); d.fullscreenElement = null; c.fullscreenChanged();
+  pending.reject(Error('cancelled')); await locking;
+  assert.equal(c.snapshot().mode, 'inline'); assert.equal(c.snapshot().lock, 'none'); assert.ok(!calls.includes('unlock'));
 });
-
-test('new entry waits for an outstanding native exit', async () => {
-  const exit = deferred(); const { controller: c, calls } = setup({ exit: () => exit.promise });
-  await c.enter(); c.leave(); await c.enter();
-  assert.equal(calls.filter(c => c === 'request').length, 1);
-  exit.resolve(); await tick(); await c.enter();
-  assert.equal(calls.filter(c => c === 'request').length, 2);
+test('native exit releases a successfully owned lock', async () => {
+  const { c, document: d, calls } = setup(); await c.enter(); await c.requestLandscape();
+  d.fullscreenElement = null; c.fullscreenChanged(); await tick();
+  assert.equal(c.snapshot().active, false); assert.equal(calls.filter(c => c === 'unlock').length, 1);
 });
-
-test('repeated leave shares the outstanding exit and preserves refusal state', async () => {
-  const exit = deferred(); const { controller: c } = setup({ exit: () => exit.promise });
-  await c.enter(); const first = c.leave(), second = c.leave();
-  assert.equal(first, second);
-  exit.reject(Error('refused')); await second;
-  assert.equal(c.snapshot().mode, 'native'); assert.equal(c.snapshot().active, true);
+test('follow device releases owned lock and remains native fullscreen', async () => {
+  const { c, calls } = setup(); c.followDevice(); assert.deepEqual(calls, []);
+  await c.enter(); await c.requestLandscape(); c.followDevice(); c.followDevice();
+  assert.equal(c.snapshot().mode, 'native'); assert.equal(c.snapshot().lock, 'none');
+  assert.equal(calls.filter(c => c === 'unlock').length, 1);
 });
-
-test('cleanup never exits another element fullscreen and absent orientation is safe', async () => {
-  const element = {}, document = { fullscreenElement: {} };
-  const c = createPlayerPresentation({ element, document, onChange() {} });
-  await c.enter(); assert.equal(c.snapshot().lock, 'unsupported');
-  c.leave(); assert.ok(document.fullscreenElement);
+test('repeat entry/exit and rapid active entry do not duplicate native requests', async () => {
+  const { c, calls } = setup();
+  for (let i = 0; i < 3; i++) { await c.enter(); await c.enter(); await c.leave(); }
+  assert.equal(calls.filter(c => c === 'request').length, 3); assert.equal(c.snapshot().mode, 'inline');
+});
+test('failed explicit unlock does not claim success and a user retry releases the owned lock', async () => {
+  const { c, orientation } = setup(); let attempts = 0;
+  orientation.unlock = () => { if (++attempts === 1) throw Error('temporarily denied'); };
+  await c.enter(); await c.requestLandscape(); c.followDevice();
+  assert.equal(c.snapshot().lock, 'locked');
+  c.followDevice(); assert.equal(c.snapshot().lock, 'none'); assert.equal(attempts, 2);
+});
+test('refused exit retains actual native state and next leave retries', async () => {
+  let fail = true; const { c, document: d } = setup({ exit: async () => { if (fail) throw Error('denied'); } });
+  await c.enter(); await c.leave(); assert.equal(c.snapshot().mode, 'native'); assert.equal(c.snapshot().active, true);
+  fail = false; await c.leave(); assert.equal(d.fullscreenElement, null); assert.equal(c.snapshot().mode, 'inline');
+});
+test('repeated exit shares pending operation and blocks new entry', async () => {
+  const pending = deferred(), { c, calls } = setup({ exit: () => pending.promise });
+  await c.enter(); const first = c.leave(), second = c.leave(); assert.equal(first, second); await c.enter();
+  assert.equal(calls.filter(c => c === 'request').length, 1); pending.resolve(); await first;
+  await c.enter(); assert.equal(calls.filter(c => c === 'request').length, 2);
+});
+test('cleanup never exits another element fullscreen and absent APIs are safe', async () => {
+  const document = { fullscreenElement: {} }; const c = createPlayerPresentation({ element: {}, document, onChange() {} });
+  await c.enter(); await c.requestLandscape(); await c.leave(); assert.ok(document.fullscreenElement);
 });
