@@ -454,17 +454,15 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
   background:var(--bg-elevated); border-radius:var(--radius-md);
 }
 .lyric-line{
-  font-size:17px; font-weight:600; line-height:1.85; color:var(--lyric-text);
+  font-size:18px; font-weight:600; line-height:1.85; color:var(--lyric-text);
   padding:6px 10px; border-radius:10px; max-width:36ch;
-  transform:scale(0.97) translateY(0);
-  transition:color .4s var(--ease), transform .4s cubic-bezier(.34,1.4,.4,1);
-  animation:lyric-line-in .5s var(--ease) backwards;
+  transform:none;
+  transition:color .4s var(--ease);
 }
-@keyframes lyric-line-in{ from{ opacity:0; transform:translateY(10px) scale(0.97); } to{ opacity:1; transform:translateY(0) scale(0.97); } }
 .lyric-line.past{ color:var(--lyric-past); }
-.lyric-line.next{ color:var(--text); font-weight:700; }
+.lyric-line.next{ color:var(--text); }
 .lyric-line.current{
-  color:var(--lyric-current); font-size:20px; font-weight:800; transform:scale(1.06) translateY(0);
+  color:var(--lyric-current);
 }
 @media (prefers-reduced-motion: reduce){
   .lyric-line{ animation:none; transition:none; }
@@ -620,7 +618,7 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 .song-resources{ padding:4px 12px 12px; color:var(--text-dim); }
 .song-resources summary{ cursor:pointer; padding:8px 0; }
 .resource-picker{ display:inline-block; margin:8px; }
-@media(min-width:860px){ .player-sheet{ width:min(900px,90vw); max-width:900px; height:calc(100dvh - 64px); } .player-sheet .lyric-line{ max-width:60ch; font-size:22px; } .player-sheet .lyric-line.current{ font-size:26px; } }
+@media(min-width:860px){ .player-sheet{ width:min(900px,90vw); max-width:900px; height:calc(100dvh - 64px); } }
 @media(max-height:520px){ .player-sheet{ padding-bottom:calc(env(safe-area-inset-bottom) + 6px); } .player-sheet-handle{ display:none; } .player-sheet-meta{ margin:2px 0 8px; } .player-sheet-controls{ gap:14px; margin-bottom:4px; } .player-sheet-controls .mini-btn.play.large{ width:44px; height:44px; } .player-sheet-time-row{ margin-bottom:4px; } }
 
 .library-song-card{ min-width:0; }
@@ -650,14 +648,12 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 
  .landscape-video .player-sheet{
   --safe-left:max(12px,env(safe-area-inset-left));--safe-right:max(12px,env(safe-area-inset-right));
-  --visual-gap:16px;--lyrics-fraction:.25;--lyrics-width:calc((100% - var(--safe-left) - var(--safe-right) - var(--visual-gap)) * var(--lyrics-fraction));
-  --sidebar-space:calc(var(--lyrics-width) + var(--visual-gap));
-  --video-controls-right:calc(var(--safe-right) + var(--sidebar-space));
+  --visual-gap:16px;--lyrics-width:clamp(280px,30cqw,360px);
+  --sidebar-space:0px;
  }
- .has-video.subtitles-off .player-sheet,.has-video .player-sheet:not(:has(.lyric-line)){--sidebar-space:0px}
  .has-video .player-visuals{direction:ltr}
  [dir="rtl"] .has-video #lyricsBody{direction:rtl}
- .landscape-video #lyricsBody{display:block;flex:0 0 calc((100% - var(--visual-gap)) * var(--lyrics-fraction));width:calc((100% - var(--visual-gap)) * var(--lyrics-fraction))}
+ .landscape-video #lyricsBody{display:none;flex:0 0 var(--lyrics-width);width:var(--lyrics-width);margin-top:max(48px,env(safe-area-inset-top));margin-bottom:max(12px,env(safe-area-inset-bottom));text-align:center}
  .has-video.subtitles-off #lyricsBody,.has-video .player-visuals:not(:has(.lyric-line)) #lyricsBody{display:none}
  .landscape-video .player-sheet,
  .landscape-video.page-fill .player-sheet,.landscape-video:fullscreen .player-sheet{
@@ -667,7 +663,7 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
  .landscape-video .player-visuals{flex:1 1 auto;height:100%;min-height:0;gap:var(--visual-gap)}
  .landscape-video .player-sheet-meta,.landscape-video .player-sheet-progress-track,
  .landscape-video .player-sheet-time-row,.landscape-video .player-sheet-controls{
-  position:absolute;left:calc(var(--safe-left) + 4px);right:var(--video-controls-right);width:auto;z-index:2;margin:0;text-shadow:0 1px 4px #000;
+  position:absolute;left:calc(var(--safe-left) + 4px);right:calc(var(--safe-right) + var(--sidebar-space));width:auto;z-index:2;margin:0;text-shadow:0 1px 4px #000;
  }
  .landscape-video .player-sheet-meta{top:max(8px,env(safe-area-inset-top));padding-right:44px;pointer-events:none}
  .landscape-video .player-sheet-title{font-size:16px}
@@ -680,9 +676,9 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
  .landscape-video .player-sheet-time-row{bottom:calc(52px + env(safe-area-inset-bottom));margin:0}
  .landscape-video .player-sheet-progress-track{bottom:calc(76px + env(safe-area-inset-bottom))}
  .landscape-video .player-sheet::after{
-  content:'';position:absolute;pointer-events:none;z-index:1;left:var(--safe-left);right:var(--video-controls-right);bottom:0;height:calc(106px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.8));
+  content:'';position:absolute;pointer-events:none;z-index:1;left:var(--safe-left);right:calc(var(--safe-right) + var(--sidebar-space));bottom:0;height:calc(106px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.8));
  }
- .landscape-video .sheet-more-panel,.landscape-video .sheet-panel{position:absolute;z-index:5;bottom:calc(56px + env(safe-area-inset-bottom));left:var(--safe-left);right:var(--video-controls-right);width:auto;max-height:65%;overflow:auto;background:var(--bg,#111)}
+ .landscape-video .sheet-more-panel,.landscape-video .sheet-panel{position:absolute;z-index:5;bottom:calc(56px + env(safe-area-inset-bottom));left:var(--safe-left);right:calc(var(--safe-right) + var(--sidebar-space));width:auto;max-height:65%;overflow:auto;background:var(--bg,#111)}
  .landscape-video.controls-hidden .player-sheet-controls,
  .landscape-video.controls-hidden .player-sheet-progress-track,
  .landscape-video.controls-hidden .player-sheet-time-row,
@@ -693,24 +689,14 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 .player-sheet-modal.open.landscape-video .player-sheet{transform:none}
 .landscape-video .player-sheet-controls{gap:8px;overflow-x:auto}
 
-/* Container width drives portrait and landscape layout alike. Physical right is
-   intentional for lyric placement, independent of the UI text direction. */
+/* Single video layout threshold: usable content width = 360px video +
+   16px gap + 280px lyrics. Container sizing excludes padding/safe areas.
+   Below it the lyrics are hidden; no stacked or overlay presentation. */
 .player-sheet{container-type:inline-size;container-name:player}
-.landscape-video #lyricsBody{margin-top:max(48px,env(safe-area-inset-top));margin-bottom:max(12px,env(safe-area-inset-bottom));text-align:center}
-@container player (max-width:699px){
- .landscape-video .player-visuals{position:relative}
- .landscape-video #lyricsBody{position:absolute;right:0;top:48px;bottom:110px;width:38%;margin:0;background:rgba(0,0,0,.72)}
- .landscape-video .player-sheet-meta,.landscape-video .player-sheet-progress-track,
- .landscape-video .player-sheet-time-row,.landscape-video .player-sheet-controls,
- .landscape-video .player-sheet::after,.landscape-video .sheet-more-panel,.landscape-video .sheet-panel{right:var(--safe-right)}
- .landscape-video .lyric-line{font-size:16px}
- .landscape-video .lyric-line.current{font-size:18px}
-}
-@container player (max-width:439px){
- .landscape-video #lyricsBody{left:8%;right:8%;width:auto;top:48px;bottom:116px;background:rgba(0,0,0,.65)}
-}
-@container player (min-width:600px){
- .player-visuals:has(#videoHost[hidden]) #lyricsBody{flex:0 1 70%;margin-left:auto}
+@container player (min-width:656px){
+ .landscape-video #lyricsBody{display:block}
+ .landscape-video:not(.subtitles-off) .player-sheet:has(.lyric-line) > :is(.player-sheet-meta,.player-sheet-progress-track,.player-sheet-time-row,.player-sheet-controls,.sheet-more-panel,.sheet-panel),
+ .landscape-video:not(.subtitles-off) .player-sheet:has(.lyric-line)::after{--sidebar-space:calc(var(--lyrics-width) + var(--visual-gap))}
 }
 
 /* Library labels preserve the row's playback background. */
