@@ -253,7 +253,7 @@ try {
     const style=node=>w.getComputedStyle(node), surface=style(d.querySelector('#lyricsBody')).backgroundColor;
     const words=[...d.querySelectorAll('.lyric-word')];
     check([...rendered,...words].every(node=>style(node).filter==='none' && contrast(style(node).color,surface)>=4.5),'clear readable lines and words '+theme+' '+width);
-    check(parseFloat(style(rendered[1]).fontSize)>parseFloat(style(rendered[3]).fontSize),'current line larger '+theme+' '+width);
+    check(style(rendered[1]).fontSize==='18px'&&['fontSize','fontWeight','lineHeight','transform'].every(key=>style(rendered[1])[key]===style(rendered[3])[key]),'fixed identical lyric typography '+theme+' '+width);
     check(luminance(style(rendered[3]).color)>luminance(style(rendered[4]).color) === (theme==='dark'),'next line contrast emphasis '+theme+' '+width);
     check(style(rendered[3].querySelector('.lyric-word')).color===style(rendered[3]).color,'preview word inherits line color '+theme+' '+width);
     check(rendered.every(node=>node.getAnimations().every(animation=>animation.effect.getKeyframes().every(key=>!key.filter || key.filter==='none'))),'animation has no lyric blur '+theme+' '+width);
@@ -337,7 +337,7 @@ try {
   const restoredTransfer=await frame.contentWindow.eval('import("/src/services/transferService.js")');
   await restoredTransfer.importLibrary(new Blob([JSON.stringify({formatVersion:3,songs:[{id:'browser-b',audioBlob:'data:audio/wav;base64,'+btoa(Array.from(new Uint8Array(await (await restored.Songs.withMedia('browser-b')).audioBlob.arrayBuffer()),byte=>String.fromCharCode(byte)).join(''))}],playlists:[],recents:[],settings:[],lyrics:[{songId:'browser-b',text:'JSON 中文 / English'}]})]));
   check((await restored.Lyrics.get('browser-b')).text==='JSON 中文 / English' && (await restored.Lyrics.get('browser-a')).text===preservedA && (await restored.Songs.all()).length===2,'JSON import overwrites target lyrics without clearing other songs');
-  const cache=await caches.open('lumen-shell-v36');
+  const cache=await caches.open('lumen-shell-v39');
   for(const path of ['src/services/mediaTimeline.js','src/services/mediaDiagnostics.js','src/components/mediaDiagnostics.js','src/services/playerPreferences.js','src/services/lyricFile.js','src/components/songResources.js','src/components/playerLyrics.js','src/lyrics/lrc.mjs']) check(!!await cache.match(new URL('../'+path,location.href)),'cached '+path);
   await fetch('/__offline',{method:'POST'});
   frame.contentWindow.location.reload();await wait(200);
