@@ -636,7 +636,7 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 .player-video{width:100%;height:100%;min-height:0;object-fit:contain}
 .player-sheet-modal.page-fill,.player-sheet-modal:fullscreen{background:var(--bg,#111);width:100%;height:100dvh}
 .player-sheet-modal.page-fill .player-sheet,.player-sheet-modal:fullscreen .player-sheet{inset:0;transform:none;width:100%;max-width:none;height:100%;border-radius:0;padding-top:max(44px,env(safe-area-inset-top));overflow-y:auto}
-@media(orientation:portrait){.has-video #lyricsBody{display:none}}
+
 
 .has-video .player-sheet{overflow-y:auto}.has-video .player-visuals{min-height:80px}
 
@@ -690,11 +690,32 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
  .landscape-video.controls-hidden .player-sheet::after{opacity:0;pointer-events:none}
 
 .landscape-video .player-sheet{inset:0;transform:none;width:100%;max-width:none;height:100%;border-radius:0}
+.player-sheet-modal.open.landscape-video:not(.rotated-video) .player-sheet{transform:none}
 .rotated-video .player-sheet,.rotated-video.page-fill .player-sheet,.rotated-video:fullscreen .player-sheet{
  inset:auto;left:50%;top:50%;width:100dvh;height:100dvw;max-width:none;
  transform:translate(-50%,-50%) rotate(90deg);transform-origin:center;
 }
 .landscape-video .player-sheet-controls{gap:8px;overflow-x:auto}
+
+/* Container width drives portrait and landscape layout alike. Physical right is
+   intentional for lyric placement, independent of the UI text direction. */
+.player-sheet{container-type:inline-size;container-name:player}
+.landscape-video #lyricsBody{margin-top:max(48px,env(safe-area-inset-top));margin-bottom:max(12px,env(safe-area-inset-bottom));text-align:center}
+@container player (max-width:699px){
+ .landscape-video .player-visuals{position:relative}
+ .landscape-video #lyricsBody{position:absolute;right:0;top:48px;bottom:110px;width:38%;margin:0;background:rgba(0,0,0,.72)}
+ .landscape-video .player-sheet-meta,.landscape-video .player-sheet-progress-track,
+ .landscape-video .player-sheet-time-row,.landscape-video .player-sheet-controls,
+ .landscape-video .player-sheet::after,.landscape-video .sheet-more-panel,.landscape-video .sheet-panel{right:var(--safe-right)}
+ .landscape-video .lyric-line{font-size:16px}
+ .landscape-video .lyric-line.current{font-size:18px}
+}
+@container player (max-width:439px){
+ .landscape-video #lyricsBody{left:8%;right:8%;width:auto;top:48px;bottom:116px;background:rgba(0,0,0,.65)}
+}
+@container player (min-width:600px){
+ .player-visuals:has(#videoHost[hidden]) #lyricsBody{flex:0 1 70%;margin-left:auto}
+}
 
 /* Library labels preserve the row's playback background. */
 .song-title-line{ display:flex; align-items:center; gap:6px; min-width:0; }

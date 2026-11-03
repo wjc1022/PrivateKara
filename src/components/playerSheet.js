@@ -111,7 +111,7 @@ export function initPlayerSheet() {
   controls.append(moreBtn);secondary.after(morePanel);
   const buttons={shuffle:shuffleBtn,repeat:repeatBtn,favorite:favBtn,queue:queueBtn,variant:variantBtn,subtitles:subtitlesBtn,fullscreen:fullscreenBtn};
   let subtitles=true, hideTimer, keyboardFocus=false;
-  function isLandscapeVideo() { return modal.classList.contains('open') && getCurrentSong()?.mediaType==='video' && (landscape.matches || expanded); }
+  function isLandscapeVideo() { return modal.classList.contains('open') && getCurrentSong()?.mediaType==='video'; }
   function reveal() {
     clearTimeout(hideTimer);modal.classList.remove('controls-hidden');
     for(const node of [controls,secondary,progressTrack,morePanel]) node.inert=false;
@@ -132,7 +132,7 @@ export function initPlayerSheet() {
     subtitlesBtn.textContent=t(subtitlesBtn.dataset.i18n);
     const order=[shuffleBtn,prevBtn,playBtn,nextBtn,repeatBtn,favBtn,fullscreenBtn,variantBtn,queueBtn,subtitlesBtn];
     for(const [key,button] of Object.entries(buttons)) {
-      button.hidden=!prefs[key] || (key==='variant' && video) || (key==='fullscreen' && !video) || (key==='subtitles' && video && !wide);
+      button.hidden=!prefs[key] || (key==='variant' && video) || (key==='fullscreen' && !video);
     }
     moreBtn.hidden=true;
     for(const button of order) (wide || [shuffleBtn,prevBtn,playBtn,nextBtn,repeatBtn].includes(button)?controls:secondary).append(button);

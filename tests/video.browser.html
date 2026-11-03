@@ -32,7 +32,18 @@ const video=songs.find(s=>s.title==='with-lyrics');await engine.selectSong(video
 check(engine.audioEl.tagName==='VIDEO'&&d.querySelectorAll('video,audio').length===1,'one shared media element');
 await until(()=>d.querySelector('.lyric-line'),'lyrics');engine.audioEl.pause();engine.seekTo(.4);await until(()=>!engine.audioEl.seeking,'seek');check(engine.audioEl.currentTime>0.5,'seek uses video currentTime');
 const track=d.querySelector('#sheetProgressTrack');track.setPointerCapture=()=>{};const rect=track.getBoundingClientRect();track.dispatchEvent(new w.PointerEvent('pointerdown',{clientX:rect.left+rect.width*.6,pointerId:1}));track.dispatchEvent(new w.PointerEvent('pointerup',{pointerId:1}));await until(()=>!engine.audioEl.seeking,'pointer seek');check(engine.audioEl.currentTime>1,'player progress pointer seeks video');
-frame.style.width='390px';frame.style.height='844px';await wait(150);check(w.getComputedStyle(d.querySelector('#lyricsBody')).display==='none','portrait hides entire video lyrics area');
+frame.style.width='390px';frame.style.height='844px';await wait(150);check(w.getComputedStyle(d.querySelector('#lyricsBody')).display!=='none','narrow portrait retains overlaid lyrics');
+// Actual container widths in both orientations.
+for(const [width,height] of [[768,1024],[820,1180],[1024,768],[1280,800]]){
+ frame.style.width=width+'px';frame.style.height=height+'px';await wait(150);
+ const v=d.querySelector('#videoHost').getBoundingClientRect(),l=d.querySelector('#lyricsBody').getBoundingClientRect();
+ check(l.width>0&&l.left>=v.right-1,'separate right lyric panel '+width+'x'+height);
+ check(d.querySelector('.player-sheet').getBoundingClientRect().width>=d.documentElement.clientWidth-2,'available player width '+width+'x'+height);
+ check(w.getComputedStyle(engine.audioEl).objectFit==='contain','aspect preserved '+width+'x'+height);
+}
+frame.style.width='600px';frame.style.height='900px';await wait(150);
+check(d.querySelector('#lyricsBody').getBoundingClientRect().right>=d.querySelector('#videoHost').getBoundingClientRect().right-1,'medium portrait overlay anchors right');
+frame.style.width='390px';frame.style.height='844px';await wait(150);
 // Denied native APIs still produce a button-driven landscape surface.
 const request=d.querySelector('#playerSheetModal').requestFullscreen;
 d.querySelector('#playerSheetModal').requestFullscreen=()=>Promise.reject(new Error('denied'));
@@ -97,7 +108,7 @@ track.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,clientX:rect.
 track.focus();track.dispatchEvent(new w.KeyboardEvent('keydown',{bubbles:true,key:'ArrowRight'}));await wait(3150);check(!modal.classList.contains('controls-hidden'),'keyboard control focus keeps visible');
 d.querySelector('#playerSheetClose').focus();tap(d.querySelector('#videoHost'));await wait(3150);check(modal.classList.contains('controls-hidden'),'after interaction ends idle timer restarts');
 if(modal.classList.contains('page-fill')) tap(d.querySelector('#sheetFullscreenBtn'));
-frame.style.width='390px';frame.style.height='844px';await wait(120);check(!modal.classList.contains('controls-hidden')&&w.getComputedStyle(d.querySelector('#lyricsBody')).display==='none','rotation cleans hidden state and portrait hides subtitles');
+frame.style.width='390px';frame.style.height='844px';await wait(120);check(!modal.classList.contains('controls-hidden')&&w.getComputedStyle(d.querySelector('#lyricsBody')).display!=='none','resize clears hidden state and retains subtitles');
 frame.style.width='568px';frame.style.height='320px';await wait(120);
 const row=d.querySelector('.player-sheet-controls'),rowRect=row.getBoundingClientRect();check([...row.children].filter(b=>!b.hidden).every(b=>{const r=b.getBoundingClientRect();return r.left>=rowRect.left-1&&r.right<=rowRect.right+1&&Math.abs(r.top-row.children[1].getBoundingClientRect().top)<2;}),'compact landscape single row does not overflow');
 frame.style.width='1280px';frame.style.height='800px';await wait(120);
