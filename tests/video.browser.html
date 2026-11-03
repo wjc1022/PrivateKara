@@ -19,8 +19,8 @@ const file=new w.File(chunks,'local-video.webm',{type:'video/webm'});
 let songs=await importer.importFiles([file]);check(songs.length===1&&songs[0].mediaType==='video','independent video import');
 check(!importer.isAudioFile(file),'video rejected as instrumental');
 const bad=await importer.importFiles([new w.File(['broken'],'broken.mp4',{type:'video/mp4'})]);check(bad.length===0,'undecodable video rejected before storage');
-const lyrics=await importer.importFiles([new w.File(chunks,'with-lyrics.webm',{type:'video/webm'}),new w.File(['[00:00]Video lyrics'],'with-lyrics.lrc')]);
-check((await db.Lyrics.get(lyrics[0].id)).text.includes('Video lyrics'),'video sidecar saved');
+const lyrics=await importer.importFiles([new w.File(chunks,'with-lyrics.webm',{type:'video/webm'}),new w.File(['[00:00]<00:00>Video <00:00.80>lyrics<00:01.90>\n[00:01.95]A naturally wrapped lyric line with enough words to occupy several lines in the dedicated region without changing its font size\n[00:02.10]Last lyric line'],'with-lyrics.lrc')]);
+check((await db.Lyrics.get(lyrics[0].id)).text.includes('Video '),'video sidecar saved');
 frame.src='../index.html?video-reload';await new Promise(r=>frame.onload=r);await until(()=>frame.contentDocument.querySelector('#page-home .page-head'),'reload');
 w=frame.contentWindow;d=w.document;const db2=await w.eval('import("/src/database/db.js")'),engine=await w.eval('import("/src/services/audioEngine.js")');
 // The fixture contains an oscillator tone; never send its playback to speakers.
@@ -32,17 +32,53 @@ const video=songs.find(s=>s.title==='with-lyrics');await engine.selectSong(video
 check(engine.audioEl.tagName==='VIDEO'&&d.querySelectorAll('video,audio').length===1,'one shared media element');
 await until(()=>d.querySelector('.lyric-line'),'lyrics');engine.audioEl.pause();engine.seekTo(.4);await until(()=>!engine.audioEl.seeking,'seek');check(engine.audioEl.currentTime>0.5,'seek uses video currentTime');
 const track=d.querySelector('#sheetProgressTrack');track.setPointerCapture=()=>{};const rect=track.getBoundingClientRect();track.dispatchEvent(new w.PointerEvent('pointerdown',{clientX:rect.left+rect.width*.6,pointerId:1}));track.dispatchEvent(new w.PointerEvent('pointerup',{pointerId:1}));await until(()=>!engine.audioEl.seeking,'pointer seek');check(engine.audioEl.currentTime>1,'player progress pointer seeks video');
-frame.style.width='390px';frame.style.height='844px';await wait(150);check(w.getComputedStyle(d.querySelector('#lyricsBody')).display!=='none','narrow portrait retains overlaid lyrics');
-// Actual container widths in both orientations.
-for(const [width,height] of [[768,1024],[820,1180],[1024,768],[1280,800]]){
- frame.style.width=width+'px';frame.style.height=height+'px';await wait(150);
- const v=d.querySelector('#videoHost').getBoundingClientRect(),l=d.querySelector('#lyricsBody').getBoundingClientRect();
- check(l.width>0&&l.left>=v.right-1,'separate right lyric panel '+width+'x'+height);
- check(d.querySelector('.player-sheet').getBoundingClientRect().width>=d.documentElement.clientWidth-2,'available player width '+width+'x'+height);
- check(w.getComputedStyle(engine.audioEl).objectFit==='contain','aspect preserved '+width+'x'+height);
+const sheetNode=d.querySelector('.player-sheet'),lyricBody=d.querySelector('#lyricsBody'),visuals=d.querySelector('.player-visuals');
+function typography(label){
+ const lines=[...d.querySelectorAll('.lyric-line')],baseline=w.getComputedStyle(lines[0]);
+ check(lines.length>=3&&lines.every(line=>{const cs=w.getComputedStyle(line);return cs.fontSize==='18px'&&['fontSize','fontWeight','lineHeight','transform'].every(k=>cs[k]===baseline[k]);}),'identical fixed 18px lyric typography '+label);
+ check(baseline.transform==='none','no lyric scaling '+label);
 }
-frame.style.width='600px';frame.style.height='900px';await wait(150);
-check(d.querySelector('#lyricsBody').getBoundingClientRect().right>=d.querySelector('#videoHost').getBoundingClientRect().right-1,'medium portrait overlay anchors right');
+function usableWidth(){const cs=w.getComputedStyle(sheetNode);return sheetNode.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);}
+function layout(label){
+ const usable=usableWidth(),visible=w.getComputedStyle(lyricBody).display!=='none',expected=usable>=656;
+ check(visible===expected,'width-only lyric visibility '+label+' usable='+usable);
+ const v=d.querySelector('#videoHost').getBoundingClientRect(),l=lyricBody.getBoundingClientRect(),area=visuals.getBoundingClientRect(),row=d.querySelector('.player-sheet-controls').getBoundingClientRect();
+ check(w.getComputedStyle(engine.audioEl).objectFit==='contain','video contain '+label);
+ if(visible){
+  check(v.width>=359.5&&l.width>=279.5,'minimum usable video and lyric widths '+label);
+  check(l.left>=v.right+15.5&&l.top>=v.top&&l.top<v.bottom&&l.bottom<=v.bottom+1,'physical right separate regions, never stacked or overlaid '+label);
+  check(w.getComputedStyle(lyricBody).position==='relative','lyrics stay in normal flow '+label);
+  check(row.right<=v.right+1&&row.right<=l.left,'controls stay outside lyric region '+label);
+ }else{
+  check(l.width===0&&l.height===0,'hidden lyrics have no box '+label);
+  check(Math.abs(v.width-area.width)<1,'hidden lyrics return full available width to video '+label);
+  check(row.right<=v.right+1,'video-only controls fit '+label);
+ }
+ typography(label);return visible;
+}
+for(const [width,height] of [[390,844],[568,320],[844,390],[768,1024],[820,1180],[1024,768],[1280,800]]){
+ frame.style.width=width+'px';frame.style.height=height+'px';await wait(150);layout(width+'x'+height);
+ check(sheetNode.getBoundingClientRect().width>=d.documentElement.clientWidth-2,'player uses available viewport width '+width+'x'+height);
+}
+// Same usable container width with opposite viewport orientations; boundaries
+// and extra padding model constrained hosts and safe-area space independently.
+for(const contentWidth of [655,656,657,760]){
+ const modes=[];
+ for(const [width,height] of [[1000,1200],[1200,800]]){
+  frame.style.width=width+'px';frame.style.height=height+'px';
+  const sheetStyle=w.getComputedStyle(sheetNode);
+  sheetNode.style.width=(contentWidth+84+parseFloat(sheetStyle.borderLeftWidth)+parseFloat(sheetStyle.borderRightWidth))+'px';sheetNode.style.setProperty('--safe-left','40px');sheetNode.style.setProperty('--safe-right','44px');
+  await wait(150);check(Math.abs(usableWidth()-contentWidth)<.5,'explicit usable container width '+contentWidth+' in '+width+'x'+height);
+  modes.push(layout('constrained '+contentWidth+' in '+width+'x'+height));
+ }
+ check(modes[0]===modes[1],'same container width gives same mode in either orientation '+contentWidth);
+}
+sheetNode.style.removeProperty('width');sheetNode.style.removeProperty('--safe-left');sheetNode.style.removeProperty('--safe-right');
+frame.style.width='1000px';frame.style.height='600px';await wait(150);
+check(d.querySelectorAll('.lyric-line')[1].offsetHeight>70,'long lyrics wrap naturally at fixed font size');
+engine.seekTo(.1);await until(()=>!engine.audioEl.seeking,'enhanced word seek');await wait(150);
+const words=d.querySelector('.lyric-line.current').querySelectorAll('.lyric-word');
+check(w.getComputedStyle(words[0]).color!==w.getComputedStyle(words[1]).color,'Enhanced LRC sung and pending word colors preserved');
 frame.style.width='390px';frame.style.height='844px';await wait(150);
 // Denied native APIs still produce a button-driven landscape surface.
 const request=d.querySelector('#playerSheetModal').requestFullscreen;
@@ -51,6 +87,10 @@ d.querySelector('#sheetFullscreenBtn').click();await wait(120);
 check(d.querySelector('#playerSheetModal').classList.contains('rotated-video'),'portrait lock gets CSS landscape');
 const rotated=d.querySelector('.player-sheet').getBoundingClientRect();
 check(Math.abs(rotated.width-390)<2&&Math.abs(rotated.height-844)<2,'rotated sheet fills portrait viewport');
+typography('rotated fullscreen fallback');
+// In rotated fallback logical container X appears as physical screen Y.
+const rotatedVideo=d.querySelector('#videoHost').getBoundingClientRect(),rotatedLyrics=lyricBody.getBoundingClientRect();
+check(w.getComputedStyle(lyricBody).display!=='none'&&rotatedLyrics.top>=rotatedVideo.bottom,'rotated fallback retains separate logical right lyric region');
 const rotatedTrack=track.getBoundingClientRect();
 track.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,clientX:rotatedTrack.left,clientY:rotatedTrack.top+rotatedTrack.height*.7,pointerId:7,pointerType:'touch'}));
 track.dispatchEvent(new w.PointerEvent('pointerup',{pointerId:7}));
@@ -74,9 +114,10 @@ check(w.getComputedStyle(engine.audioEl).objectFit==='contain','original aspect 
 const modal=d.querySelector('#playerSheetModal'),sub=d.querySelector('#sheetSubtitlesBtn'),more=d.querySelector('#sheetMoreBtn');
 const pref=await w.eval('import("/src/services/playerPreferences.js")');
 function tap(node){node.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',pointerId:4}));node.click();}
-const ratio=vr.width/(vr.width+lr.width);check(Math.abs(ratio-.75)<.015,'video/subtitles ratio is 75:25');
+layout('landscape page fill');
+check(lr.width>=280&&vr.width>=360,'page fill retains both minimum region widths');
 check(Math.abs(d.querySelector('.player-sheet-controls').getBoundingClientRect().right-vr.right)<2,'shared control/sidebar boundary');
-check(more.hidden===true,'all controls fit without more at 1000px');
+check(d.querySelector('.player-sheet-controls').scrollWidth<=d.querySelector('.player-sheet-controls').clientWidth+1,'measured controls fit dedicated video width');
 frame.style.width='568px';frame.style.height='320px';await wait(120);check(!more.hidden,'actual narrow container offers more');
 tap(more);check(!d.querySelector('#sheetMorePanel').hidden,'more opens access to low frequency actions');
 frame.style.width='1000px';frame.style.height='600px';await wait(120);
@@ -108,13 +149,13 @@ track.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,clientX:rect.
 track.focus();track.dispatchEvent(new w.KeyboardEvent('keydown',{bubbles:true,key:'ArrowRight'}));await wait(3150);check(!modal.classList.contains('controls-hidden'),'keyboard control focus keeps visible');
 d.querySelector('#playerSheetClose').focus();tap(d.querySelector('#videoHost'));await wait(3150);check(modal.classList.contains('controls-hidden'),'after interaction ends idle timer restarts');
 if(modal.classList.contains('page-fill')) tap(d.querySelector('#sheetFullscreenBtn'));
-frame.style.width='390px';frame.style.height='844px';await wait(120);check(!modal.classList.contains('controls-hidden')&&w.getComputedStyle(d.querySelector('#lyricsBody')).display!=='none','resize clears hidden state and retains subtitles');
+frame.style.width='390px';frame.style.height='844px';await wait(120);check(!modal.classList.contains('controls-hidden')&&w.getComputedStyle(d.querySelector('#lyricsBody')).display==='none','resize clears hidden state and hides narrow subtitles');
 frame.style.width='568px';frame.style.height='320px';await wait(120);
 const row=d.querySelector('.player-sheet-controls'),rowRect=row.getBoundingClientRect();check([...row.children].filter(b=>!b.hidden).every(b=>{const r=b.getBoundingClientRect();return r.left>=rowRect.left-1&&r.right<=rowRect.right+1&&Math.abs(r.top-row.children[1].getBoundingClientRect().top)<2;}),'compact landscape single row does not overflow');
 frame.style.width='1280px';frame.style.height='800px';await wait(120);
 const desktopPicture=d.querySelector('#videoHost').getBoundingClientRect(),desktopRow=d.querySelector('.player-sheet-controls').getBoundingClientRect();
 check(desktopRow.right<=desktopPicture.right+2&&desktopRow.bottom<=desktopPicture.bottom,'desktop landscape overlay shares video boundary');
-const i18n=await w.eval('import("/src/services/i18nService.js")');await i18n.setLanguage('fa');
+const i18n=await w.eval('import("/src/services/i18nService.js")');await i18n.setLanguage('fa');await wait(150);layout('RTL wide');
 check(d.querySelector('#lyricsBody').getBoundingClientRect().left>=d.querySelector('#videoHost').getBoundingClientRect().right,'RTL retains right subtitle sidebar');await i18n.setLanguage('en');
 tap(d.querySelector('#playerSheetClose'));await wait(3150);check(!modal.classList.contains('controls-hidden')&&!modal.classList.contains('landscape-video'),'close clears timer and landscape state');
 d.querySelector('#miniExpand').click();check(!d.querySelector('.player-sheet-controls').inert,'reopen restores control interaction');
