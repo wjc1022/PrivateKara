@@ -286,12 +286,7 @@
   },
   "build": {
     "running": "当前运行的应用版本",
-    "identifier": "当前运行的构建标识",
-    "revision": "不可变源码快照",
-    "git": "Git 检出来源",
-    "dirty": "包含修改或生成输入，不能视为该提交的精确构建",
-    "clean": "干净检出",
-    "unprepared": "未验证的源码预览，请使用打包后的发布目录",
+    "identifier": "构建编号",
     "notChecked": "服务器构建：尚未检查",
     "server": "服务器最新可用构建",
     "check": "检查服务器构建",

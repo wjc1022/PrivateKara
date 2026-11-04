@@ -286,12 +286,7 @@
   },
   "build": {
     "running": "Running application version",
-    "identifier": "Running build ID",
-    "revision": "Immutable source snapshot",
-    "git": "Git checkout provenance",
-    "dirty": "modified or generated inputs; not an exact commit build",
-    "clean": "clean checkout",
-    "unprepared": "Unverified source preview — use a prepared release",
+    "identifier": "Build number",
     "notChecked": "Server build: not checked",
     "server": "Latest available server build",
     "check": "Check server build",

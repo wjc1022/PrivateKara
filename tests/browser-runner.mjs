@@ -1,4 +1,3 @@
-import { prepareBuild } from '../scripts/prepare-build.mjs';
 // Dependency-free Chromium smoke checks. Uses an isolated profile and synthetic audio.
 // CHROME_PATH may point to a different installed Chromium executable.
 import http from 'node:http';
@@ -8,25 +7,22 @@ import { join, extname, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
-const releaseDir=await mkdtemp(join(tmpdir(),'privatekara-release-'));
-let release=await prepareBuild({out:releaseDir});
-const initialRelease=release;
+let release = JSON.parse(await readFile(join(root,'version.json'),'utf8'));
 const types={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.svg':'image/svg+xml'};
 let finish;
-let offline=false;
+let offline=false, incomplete=false;
 const completed = new Promise(resolve => {finish=resolve;});
 const server=http.createServer(async(req,res)=>{
   if(req.url==='/__reference-audio' && process.env.LUMEN_TEST_AUDIO_PATH) {try{res.setHeader('Content-Type','audio/mpeg');res.end(await readFile(process.env.LUMEN_TEST_AUDIO_PATH));}catch{res.writeHead(404);res.end();}return;}
   if(req.url==='/__result') {let body='';for await(const chunk of req)body+=chunk;res.end('ok');finish(body);return;}
-  if(req.url==='/__publish' || req.url==='/__broken-publish') {
-    const css=await readFile(join(root,'src/styles/main.css'),'utf8');
-    release=await prepareBuild({out:releaseDir,overrides:{'src/styles/main.css':css+'\n/* test release '+req.url+' */\n'}});
-    if(req.url==='/__broken-publish')await writeFile(join(releaseDir,release.prefix,'src/styles/main.css'),'broken deployment');
-    res.setHeader('Content-Type','application/json');res.end(JSON.stringify(release.info));return;
+  if(req.url==='/__publish' || req.url==='/__incomplete') {
+    release={...release,build:release.build+1}; incomplete=req.url==='/__incomplete';
+    res.setHeader('Content-Type','application/json');res.end(JSON.stringify(release));return;
   }
   if(req.url==='/__offline') {offline=true;res.end('ok');return;}
   if(offline) {res.writeHead(503);res.end('Offline test');return;}
-  try {const url=decodeURIComponent(req.url.split('?')[0]==='/'?'/index.html':req.url.split('?')[0]);const base=url.startsWith('/tests/')?root:releaseDir;const path=resolve(base,'.'+url);if(!path.startsWith(base))throw Error();res.setHeader('Content-Type',types[extname(path)]||'application/octet-stream');let bytes=await readFile(path);if(url.startsWith('/tests/')&&extname(path)==='.html')bytes=Buffer.from(bytes.toString().replaceAll('/src/','/'+initialRelease.prefix+'src/').replaceAll('"/build-info.js"','"/'+initialRelease.prefix+'build-info.js"'));res.end(bytes);}
+  if(incomplete && req.url.split('?')[0]==='/src/styles/main.css'){res.writeHead(404);res.end();return;}
+  try {const url=decodeURIComponent(req.url.split('?')[0]==='/'?'/index.html':req.url.split('?')[0]);const path=resolve(root,'.'+url);if(!path.startsWith(root))throw Error();res.setHeader('Content-Type',types[extname(path)]||'application/octet-stream');res.end(url==='/version.json'?JSON.stringify(release):await readFile(path));}
   catch {res.writeHead(404);res.end();}
 });
 await new Promise(done=>server.listen(0,'127.0.0.1',done));

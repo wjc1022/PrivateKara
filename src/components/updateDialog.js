@@ -80,7 +80,7 @@ export function showUpdateAvailable({ current, latest }) {
         retryBtn.addEventListener("click", close);
         sheetEl.appendChild(el("div", { class: "lmp-actions" }, [retryBtn]));
       }
-    });
+    }, latest);
   });
 
   const versionRows = el("div", { class: "update-version-rows" }, [

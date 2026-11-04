@@ -1,4 +1,4 @@
-import { buildInfo } from '../../build-info.js';
+import { buildInfo } from '../services/versionService.js';
 import { checkForUpdate } from '../services/updateService.js';
 /**
  * pages/about.js
@@ -28,9 +28,7 @@ export function renderAbout(container) {
   const rows = el('dl', { class: 'build-identification', id: 'runningBuild' });
   const row = (key, value) => rows.append(el('dt', {}, t(key)), el('dd', {}, value));
   row('build.running', buildInfo.version);
-  row('build.identifier', buildInfo.build || t('build.unprepared'));
-  row('build.revision', buildInfo.sourceRevision || t('build.unprepared'));
-  row('build.git', buildInfo.git?.commit ? buildInfo.git.commit + ' (' + (buildInfo.git.dirty ? t('build.dirty') : t('build.clean')) + ')' : t('build.unprepared'));
+  row('build.identifier', String(buildInfo.build));
   const remote = el('p', { id: 'availableBuild', role: 'status', class: 'panel-hint' }, t('build.notChecked'));
   const check = el('button', { class: 'btn ghost' }, t('build.check'));
   check.addEventListener('click', async () => {

@@ -25,7 +25,7 @@ Recent items and play counts exist locally, but they are basic selection records
 
 ## Setup
 
-The app uses plain HTML, CSS, and JavaScript ES modules. There are no npm dependencies. A small Node script prepares immutable acceptance/deployment artifacts; see [build identification](docs/BUILD_IDENTIFICATION.md).
+The app uses plain HTML, CSS, and JavaScript ES modules. There are no npm dependencies. Serve the repository files directly; see [build identification](docs/BUILD_IDENTIFICATION.md).
 
 Repository: [wjc1022/PrivateKara](https://github.com/wjc1022/PrivateKara). See the [rename verification record](./docs/REPOSITORY_RENAME.md) for completed checks and remaining deployment validation.
 
@@ -37,8 +37,7 @@ cd PrivateKara
 ```
 
 ```sh
-node scripts/prepare-build.mjs
-python -m http.server 8080 --directory dist
+python -m http.server 8080
 ```
 
 Open `http://localhost:8080`. Use a static HTTPS host for phone access and PWA testing; a phone's `localhost` refers to the phone itself. Opening `index.html` through `file://` is not supported. Service workers and other secure-context APIs require HTTPS or a trusted localhost origin.
