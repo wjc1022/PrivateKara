@@ -26,7 +26,9 @@ Read the agreed Issue, [README.md](README.md), [roadmap](docs/ROADMAP.md), relev
 ## Working and documentation rules
 
 - Inspect status and diffs first; preserve existing work. Fetch latest `origin/main` and branch from it for new Issues, or safely continue an existing PR branch. Do not overwrite unrelated changes, force-push, or commit directly to main.
-- Stay within the Issue's acceptance criteria; raise scope changes explicitly. Do not delegate to sub-agents unless the user explicitly requests it.
+- Prefer the smallest implementation that satisfies the agreed acceptance criteria; avoid unrequested architectural expansion and raise scope changes explicitly. Execute autonomously within agreed scope without seeking confirmation for routine implementation decisions. Do not delegate to sub-agents unless the user explicitly requests it.
+- Prefer targeted searches, relevant file sections, and Git diffs over unnecessary full-file reads. Reuse verified environment information; repeat a failed operation only when a meaningful change in conditions justifies another attempt.
+- Summarize successful tool output while retaining relevant errors and diagnostic context when operations fail.
 - Keep this guide in English; preserve each document's language and maintain paired English/Chinese docs when both are affected. Use UTF-8. Distinguish implementation, plans, and historical evidence; keep durable guidance concise.
 - Preserve upstream attribution to Behnood Shafiei / PWA-LumenMusic and all MIT notices in [LICENSE](LICENSE), including Lumen contributors and Junchao Wen.
 - Commit/push and open/update a Draft PR referencing the Issue. Codex must not merge or close Issues; follow the workflow's explicit user approval gates.
@@ -49,7 +51,7 @@ node --experimental-vm-modules --test $testFiles
 
 The full suite uses experimental VM modules for source-module harnesses. Optional desktop Chromium checks use `node tests/browser-runner.mjs`; modes include `--storage`, `--diagnostics`, `--video`, and `--stable-audio`. Set `CHROME_PATH` if Chrome is not at the runner's default Windows path. Inspect fixture/environment requirements before running.
 
-Choose checks proportional to the change. Documentation requires `git diff --check`, local link/path checks, and source verification of technical claims. Runtime changes need relevant automated/browser checks. Report actual commands, outcomes, failures, and skipped checks; do not reuse historical pass counts.
+Run focused tests during implementation and choose final regression coverage based on change scope and risk. Do not rerun passing tests unless relevant code or test fixtures have changed. Documentation requires `git diff --check`, local link/path checks, and source verification of technical claims. Runtime changes need relevant automated/browser checks. Never sacrifice necessary verification, conceal failures, or weaken acceptance criteria merely to save tokens. Report actual commands, outcomes, failures, and skipped checks; do not reuse historical pass counts.
 
 Real iOS Safari and installed-PWA validation remains necessary for file selection, restart persistence, audible output, sustained playback, instrumental switching, wake lock, touch/safe areas, fullscreen/orientation, and mirroring. Playback is foreground-oriented; native video fullscreen cannot show custom HTML lyrics. Desktop harnesses, metadata loading, or advancing time do not prove iPhone reliability.
 
