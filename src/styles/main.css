@@ -648,7 +648,7 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 
  .landscape-video .player-sheet{
   --safe-left:max(12px,env(safe-area-inset-left));--safe-right:max(12px,env(safe-area-inset-right));
-  --visual-gap:16px;--lyrics-width:clamp(280px,30cqw,360px);
+  --visual-gap:16px;--lyrics-width:min(300px,calc(25cqw - var(--visual-gap)));
   --sidebar-space:0px;
  }
  .has-video .player-visuals{direction:ltr}
@@ -689,11 +689,12 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 .player-sheet-modal.open.landscape-video .player-sheet{transform:none}
 .landscape-video .player-sheet-controls{gap:8px;overflow-x:auto}
 
-/* Single video layout threshold: usable content width = 360px video +
-   16px gap + 280px lyrics. Container sizing excludes padding/safe areas.
-   Below it the lyrics are hidden; no stacked or overlay presentation. */
+/* Video-first: video >= 75% of the content box, gap 16px, lyrics 180..300px.
+   Minimum feasibility: .25 * width - 16 >= 180, hence width >= 784px.
+   cqw resolves on descendants against the named player content box, after
+   padding/safe areas. Below the threshold lyrics have no layout box. */
 .player-sheet{container-type:inline-size;container-name:player}
-@container player (min-width:656px){
+@container player (min-width:784px){
  .landscape-video #lyricsBody{display:block}
  .landscape-video:not(.subtitles-off) .player-sheet:has(.lyric-line) > :is(.player-sheet-meta,.player-sheet-progress-track,.player-sheet-time-row,.player-sheet-controls,.sheet-more-panel,.sheet-panel),
  .landscape-video:not(.subtitles-off) .player-sheet:has(.lyric-line)::after{--sidebar-space:calc(var(--lyrics-width) + var(--visual-gap))}

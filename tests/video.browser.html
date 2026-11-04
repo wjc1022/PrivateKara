@@ -40,12 +40,14 @@ function typography(label){
 }
 function usableWidth(){const cs=w.getComputedStyle(sheetNode);return sheetNode.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);}
 function layout(label){
- const usable=usableWidth(),visible=w.getComputedStyle(lyricBody).display!=='none',expected=usable>=656;
+ const usable=usableWidth(),visible=w.getComputedStyle(lyricBody).display!=='none',expected=usable>=784;
  check(visible===expected,'width-only lyric visibility '+label+' usable='+usable);
  const v=d.querySelector('#videoHost').getBoundingClientRect(),l=lyricBody.getBoundingClientRect(),area=visuals.getBoundingClientRect(),row=d.querySelector('.player-sheet-controls').getBoundingClientRect();
  check(w.getComputedStyle(engine.audioEl).objectFit==='contain','video contain '+label);
  if(visible){
-  check(v.width>=359.5&&l.width>=279.5,'minimum usable video and lyric widths '+label);
+  const expectedLyrics=Math.min(300,usable*.25-16),expectedVideo=usable-16-expectedLyrics;
+  check(v.width>=usable*.75-.1&&l.width>=179.9&&l.width<=300.1,'video at least 75 percent and lyrics within 180..300 '+label);
+  check(Math.abs(l.width-expectedLyrics)<.1&&Math.abs(v.width-expectedVideo)<.1&&Math.abs(l.left-v.right-16)<.1,'exact content-box allocation '+label);
   check(l.left>=v.right+15.5&&l.top>=v.top&&l.top<v.bottom&&l.bottom<=v.bottom+1,'physical right separate regions, never stacked or overlaid '+label);
   check(w.getComputedStyle(lyricBody).position==='relative','lyrics stay in normal flow '+label);
   check(row.right<=v.right+1&&row.right<=l.left,'controls stay outside lyric region '+label);
@@ -62,9 +64,9 @@ for(const [width,height] of [[390,844],[568,320],[844,390],[768,1024],[820,1180]
 }
 // Same usable container width with opposite viewport orientations; boundaries
 // and extra padding model constrained hosts and safe-area space independently.
-for(const contentWidth of [655,656,657,760]){
+for(const contentWidth of [700,780,783,784,785,900,1100,1400]){
  const modes=[];
- for(const [width,height] of [[1000,1200],[1200,800]]){
+ for(const [width,height] of [[1600,1800],[1800,1600]]){
   frame.style.width=width+'px';frame.style.height=height+'px';
   const sheetStyle=w.getComputedStyle(sheetNode);
   sheetNode.style.width=(contentWidth+84+parseFloat(sheetStyle.borderLeftWidth)+parseFloat(sheetStyle.borderRightWidth))+'px';sheetNode.style.setProperty('--safe-left','40px');sheetNode.style.setProperty('--safe-right','44px');
@@ -115,7 +117,7 @@ playerModal.requestFullscreen=async()=>{nativeElement=playerModal;d.dispatchEven
 d.exitFullscreen=async()=>{nativeElement=null;d.dispatchEvent(new w.Event('fullscreenchange'));};
 Object.defineProperty(w.screen.orientation,'lock',{configurable:true,value:async()=>{lockCalls++;}});
 Object.defineProperty(w.screen.orientation,'unlock',{configurable:true,value:()=>{unlockCalls++;}});
-for(const [width,height] of [[768,1024],[1024,768],[390,844],[844,390]]){
+for(const [width,height] of [[820,1180],[1180,820],[390,844],[844,390]]){
  frame.style.width=width+'px';frame.style.height=height+'px';await wait(100);
  d.querySelector('#sheetFullscreenBtn').click();await wait(100);
  check(playerModal.dataset.presentation==='native','mock native fullscreen confirms actual element '+width+'x'+height);
@@ -178,7 +180,7 @@ const modal=d.querySelector('#playerSheetModal'),sub=d.querySelector('#sheetSubt
 const pref=await w.eval('import("/src/services/playerPreferences.js")');
 function tap(node){node.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',pointerId:4}));node.click();}
 layout('landscape page fill');
-check(lr.width>=280&&vr.width>=360,'page fill retains both minimum region widths');
+check(vr.width>=usableWidth()*.75-.1&&lr.width>=180&&lr.width<=300,'page fill retains video-first allocation');
 check(Math.abs(d.querySelector('.player-sheet-controls').getBoundingClientRect().right-vr.right)<2,'shared control/sidebar boundary');
 check(d.querySelector('.player-sheet-controls').scrollWidth<=d.querySelector('.player-sheet-controls').clientWidth+1,'measured controls fit dedicated video width');
 frame.style.width='568px';frame.style.height='320px';await wait(120);check(!more.hidden,'actual narrow container offers more');
