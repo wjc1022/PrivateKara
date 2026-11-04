@@ -1,13 +1,7 @@
 {
-  "version": "2.2.1",
-  "build": 1,
-  "releaseDate": "2026-07-08",
+  "version": "2.2.2",
+  "releaseDate": "2026-11-04",
   "changelog": [
-    "Bottom sheet player with full playback controls",
-    "Playback speed control (0.5x-2x)",
-    "Vocal / Instrumental switching (where available)",
-    "Smoother, more premium lyrics screen",
-    "Further improved iPhone import reliability",
-    "Lightweight version.json-based update checker"
+    "Reliable running-build identification and immutable offline releases"
   ]
 }

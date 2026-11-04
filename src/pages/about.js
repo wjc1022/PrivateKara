@@ -1,3 +1,5 @@
+import { buildInfo } from '../../build-info.js';
+import { checkForUpdate } from '../services/updateService.js';
 /**
  * pages/about.js
  */
@@ -22,6 +24,23 @@ export function renderAbout(container) {
     el("div", { class: "panel-title" }, t("about.architectureTitle")),
     el("p", { class: "panel-hint" }, t("about.architectureBody")),
   ]));
+
+  const rows = el('dl', { class: 'build-identification', id: 'runningBuild' });
+  const row = (key, value) => rows.append(el('dt', {}, t(key)), el('dd', {}, value));
+  row('build.running', buildInfo.version);
+  row('build.identifier', buildInfo.build || t('build.unprepared'));
+  row('build.revision', buildInfo.sourceRevision || t('build.unprepared'));
+  row('build.git', buildInfo.git?.commit ? buildInfo.git.commit + ' (' + (buildInfo.git.dirty ? t('build.dirty') : t('build.clean')) + ')' : t('build.unprepared'));
+  const remote = el('p', { id: 'availableBuild', role: 'status', class: 'panel-hint' }, t('build.notChecked'));
+  const check = el('button', { class: 'btn ghost' }, t('build.check'));
+  check.addEventListener('click', async () => {
+    check.disabled = true;
+    try {
+      const result = await checkForUpdate({ force: true });
+      remote.textContent = result.latest ? t('build.server') + ': ' + result.latest.version + ' / ' + (result.latest.build || '?') : t('build.unreachable');
+    } finally { check.disabled = false; }
+  });
+  container.append(el('div', { class: 'panel glass' }, [rows, remote, check]));
 
   const sourceLink = el("a", {
     class: "link",

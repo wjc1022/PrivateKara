@@ -8,12 +8,12 @@ Read the agreed Issue, [README.md](README.md), [roadmap](docs/ROADMAP.md), relev
 
 ## Architecture and constraints
 
-- Keep native HTML/CSS/JavaScript ES modules: no framework, new dependencies, or build step. Serve locally with `python -m http.server 8080`; use HTTPS for phone/PWA testing, not `file://`.
+- Keep native HTML/CSS/JavaScript ES modules: no framework or dependencies. For acceptance/deployment, run `node scripts/prepare-build.mjs`, then serve `dist` with `python -m http.server 8080 --directory dist`. Raw source preview is explicitly unverified and does not register a worker. See [build identification](docs/BUILD_IDENTIFICATION.md); use HTTPS for phone/PWA testing, not `file://`.
 - `index.html` and `src/main.js` define the shell and router; `src/pages/` contains views, `src/components/` shared UI, and `src/styles/main.css` styles.
 - `src/services/audioEngine.js` owns playback. Player UI is in `src/components/miniPlayer.js`, `playerSheet.js`, and `playerLyrics.js`. Lyrics follow active media `currentTime`; protect asynchronous song changes against stale results.
 - `src/database/db.js` owns library storage. Import/backup services are in `src/services/importService.js`, `lyricFile.js`, `transferService.js`, and `lmpService.js`. `src/lyrics/lrc.mjs` already parses Enhanced LRC word tags.
 - Localize UI through `src/locales/en.json`, `zh-CN.json`, and `fa.json`; respect Persian RTL. Lyric language is independent of UI language.
-- `sw.js` caches the app shell. Inspect resource coverage and cache lifecycle for runtime shell changes; documentation-only work does not require a cache bump.
+- `sw.js` is a release template: the packager derives its cache identity and integrity manifest from the same build metadata as the loaded application. Do not manually bump a cache version or hand-edit generated metadata. Regenerate the release after runtime changes; publish the complete prepared artifact.
 
 ## Data and compatibility
 

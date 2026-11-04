@@ -25,7 +25,7 @@ PrivateKara 是一款优先面向手机的渐进式 Web 应用，主要用于实
 
 ## 运行方式
 
-应用使用原生 HTML、CSS 和 JavaScript ES 模块，无 npm 依赖，也无需构建。
+应用使用原生 HTML、CSS 和 JavaScript ES 模块，无 npm 依赖。使用轻量 Node 脚本生成不可变验收／发布包；详见[构建识别与发布](docs/BUILD_IDENTIFICATION.zh-CN.md)。直接运行源码仅属于未验证预览，不会注册 Service Worker。
 
 仓库：[wjc1022/PrivateKara](https://github.com/wjc1022/PrivateKara)。已完成的检查和待验证的部署事项见[重命名验证记录](./docs/REPOSITORY_RENAME.md)。
 
@@ -37,7 +37,8 @@ cd PrivateKara
 ```
 
 ```sh
-python -m http.server 8080
+node scripts/prepare-build.mjs
+python -m http.server 8080 --directory dist
 ```
 
 打开 `http://localhost:8080`。手机访问和 PWA 测试请使用静态 HTTPS 站点；手机上的 `localhost` 指向手机自身。不支持通过 `file://` 直接打开 `index.html`。Service Worker 等要求安全上下文的 API 需要 HTTPS 或受信任的 localhost 来源。

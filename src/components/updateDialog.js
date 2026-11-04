@@ -10,7 +10,7 @@
 
 import { el, clearNode } from "../utils/dom.js";
 import { t } from "../services/i18nService.js";
-import { dismissVersion, applyUpdateAndReload } from "../services/updateService.js";
+import { dismissVersion, applyUpdateAndReload, buildKey } from "../services/updateService.js";
 
 let modalEl = null;
 let sheetEl = null;
@@ -57,7 +57,7 @@ export function showUpdateAvailable({ current, latest }) {
   const updateBtn = el("button", { class: "btn primary" }, t("update.updateNow"));
 
   remindBtn.addEventListener("click", async () => {
-    await dismissVersion(latest.version);
+    await dismissVersion(buildKey(latest));
     close();
   });
 
@@ -84,8 +84,8 @@ export function showUpdateAvailable({ current, latest }) {
   });
 
   const versionRows = el("div", { class: "update-version-rows" }, [
-    versionRow(t("update.currentVersion"), current.version),
-    versionRow(t("update.latestVersion"), latest.version),
+    versionRow(t("update.currentVersion"), current.version + (current.build ? " / " + current.build : "")),
+    versionRow(t("update.latestVersion"), latest.version + (latest.build ? " / " + latest.build : "")),
     versionRow(t("update.releaseDate"), formatDate(latest.releaseDate)),
   ]);
 

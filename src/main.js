@@ -1,3 +1,4 @@
+import { buildInfo, deploymentRoot } from '../build-info.js';
 /**
  * main.js
  * ---------------------------------------------------------------
@@ -39,8 +40,8 @@ import { restorePlaybackPreferences } from "./services/audioEngine.js";
 // that race. A readyState check covers the (rarer) case where this
 // module itself finishes loading after `load` has already fired.
 function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("sw.js").catch((err) => {
+  if (!buildInfo.prepared || !("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register(new URL("sw.js", deploymentRoot), { scope: deploymentRoot.href, updateViaCache: "none" }).catch((err) => {
     console.warn("Service worker registration failed:", err);
   });
 }
@@ -81,6 +82,7 @@ let importPanel;
 
 async function boot() {
   await initI18n();
+  document.querySelector("#appVersion").textContent = buildInfo.version;
   await initTheme();
   await restorePlaybackPreferences();
 

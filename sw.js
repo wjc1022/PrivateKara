@@ -1,132 +1,60 @@
-/* =========================================================
-   Lumen — sw.js
-   Cache-first for the app shell (HTML, CSS, JS modules, locales,
-   icons), so the app keeps working offline after the first load.
-   Imported songs live in IndexedDB, not behind network requests,
-   so there is no user media to precache here.
-   ========================================================= */
-
-const CACHE_NAME = "lumen-shell-v40";
-
-const APP_SHELL = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./version.json",
-  "./src/styles/main.css",
-  "./src/main.js",
-  "./src/lyrics/lrc.mjs",
-  "./src/database/db.js",
-  "./src/services/audioEngine.js",
-  "./src/services/playerPresentation.js",
-  "./src/services/mediaDiagnostics.js",
-  "./src/services/mediaTimeline.js",
-  "./src/components/mediaDiagnostics.js",
-  "./src/services/playerPreferences.js",
-  "./src/services/coverService.js",
-  "./src/services/i18nService.js",
-  "./src/services/importService.js",
-  "./src/services/lyricFile.js",
-  "./src/components/songResources.js",
-  "./src/services/lmpService.js",
-  "./src/services/metadataService.js",
-  "./src/services/phoneMusicService.js",
-  "./src/services/sleepTimerService.js",
-  "./src/services/sortService.js",
-  "./src/services/themeService.js",
-  "./src/services/transferService.js",
-  "./src/services/updateService.js",
-  "./src/pages/about.js",
-  "./src/pages/favorites.js",
-  "./src/pages/home.js",
-  "./src/pages/library.js",
-  "./src/pages/phoneMusic.js",
-  "./src/pages/playlists.js",
-  "./src/pages/settings.js",
-  "./src/components/emptyState.js",
-  "./src/components/importPanel.js",
-  "./src/components/lmpDialog.js",
-  "./src/components/playerLyrics.js",
-  "./src/components/miniPlayer.js",
-  "./src/components/playerSheet.js",
-  "./src/components/sideMenu.js",
-  "./src/components/songRow.js",
-  "./src/components/sortControl.js",
-  "./src/components/updateDialog.js",
-  "./src/utils/dom.js",
-  "./src/utils/format.js",
-  "./src/utils/id.js",
-  "./src/utils/zip.js",
-  "./src/utils/inflate.js",
-  "./src/utils/platform.js",
-  "./src/utils/semver.js",
-  "./src/locales/en.json",
-  "./src/locales/zh-CN.json",
-  "./src/locales/fa.json",
-  "./assets/icons/icon-192.png",
-  "./assets/icons/icon-512.png",
-  "./assets/icons/apple-touch-icon.png",
-  "./assets/icons/maskable-512.png",
-];
-
-// Lets the update flow (services/updateService.js) force this worker
-// to activate immediately instead of waiting for all tabs to close.
-self.addEventListener("message", (event) => {
-  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
-});
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      Promise.all(
-        APP_SHELL.map((url) => cache.add(url).catch((err) => console.warn("SW: skip", url, err)))
-      )
-    )
-  );
-  // Deliberately no self.skipWaiting() here: once a previous version is
-  // already controlling the page, a newly-installed worker should wait
-  // until the user explicitly chooses "Update now" (see
-  // services/updateService.js), rather than silently taking over.
-});
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
-});
-
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
-
-  const url = new URL(request.url);
-  // Cache-busted requests (e.g. version.json?t=...) are meant to always
-  // hit the network — caching them would both defeat their purpose and
-  // pollute the cache with one entry per timestamp forever.
-  const isCacheBusted = url.search.length > 0 && url.origin === self.location.origin;
-
-  if (isCacheBusted) {
-    event.respondWith(fetch(request).catch(() => caches.match(request.url.split("?")[0])));
-    return;
+// Generated manifest and runtime metadata come from the same version.json input.
+const RELEASE = /* BUILD_MANIFEST */ null;
+if (RELEASE) {
+  const CACHE_NAME = 'lumen-shell-' + RELEASE.info.build;
+  const absolute = path => new URL(path, self.registration.scope).href;
+  const hex = bytes => [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  async function verified(path) {
+    const response = await fetch(absolute(path), { cache: 'no-store' });
+    if (!response.ok) throw Error('Incomplete release: ' + path);
+    const hash = hex(await crypto.subtle.digest('SHA-256', await response.clone().arrayBuffer()));
+    if (hash !== RELEASE.assets[path]) throw Error('Release integrity mismatch: ' + path);
+    return response;
   }
-
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request)
-        .then((response) => {
-          if (response.ok && url.origin === self.location.origin) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          if (request.mode === "navigate") return caches.match("./index.html");
-        });
-    })
-  );
-});
+  self.addEventListener('message', event => {
+    if (event.data?.type === 'SKIP_WAITING') void self.skipWaiting();
+    if (event.data?.type === 'GET_BUILD') event.ports[0]?.postMessage(RELEASE.info);
+  });
+  self.addEventListener('install', event => {
+    event.waitUntil((async () => {
+      // Validate every response before writing anything. A partial deployment
+      // must never become a successfully installed offline shell.
+      const responses = await Promise.all(Object.keys(RELEASE.assets).map(async path => [path, await verified(path)]));
+      const cache = await caches.open(CACHE_NAME);
+      for (const [path, response] of responses) await cache.put(absolute(path), response);
+    })());
+    // An existing client must explicitly activate a waiting update.
+  });
+  self.addEventListener('activate', event => {
+    // Keep old immutable releases: an open old tab can still import its own
+    // modules after controllerchange. Never purge user or unrelated caches.
+    event.waitUntil(self.clients.claim());
+  });
+  self.addEventListener('fetch', event => {
+    const { request } = event;
+    if (request.method !== 'GET') return;
+    const url = new URL(request.url), scope = new URL(self.registration.scope);
+    if (url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
+    const path = url.pathname.slice(scope.pathname.length);
+    if (path === 'version.json' && url.search) {
+      // Latest means network only; an offline response cannot impersonate latest.
+      event.respondWith(fetch(request, { cache: 'no-store' })); return;
+    }
+    if (path.startsWith('builds/')) {
+      event.respondWith((async () => {
+        const cached = await caches.match(absolute(path));
+        if (cached) return cached;
+        if (RELEASE.assets[path]) return verified(path);
+        // Old, noncached immutable resource: network may fail, never substitute
+        // the current build's similarly named module or stylesheet.
+        return fetch(request);
+      })()); return;
+    }
+    if (['', 'index.html', 'manifest.json', 'version.json'].includes(path)) {
+      event.respondWith((async () => {
+        const cache = await caches.open(CACHE_NAME);
+        return await cache.match(absolute(path || 'index.html')) || verified(path || 'index.html');
+      })());
+    }
+  });
+}

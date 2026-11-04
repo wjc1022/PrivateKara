@@ -1,0 +1,58 @@
+<!doctype html><meta charset="utf-8"><title>Build lifecycle checks</title>
+<pre id="result">RUNNING</pre><iframe src="../index.html"></iframe>
+<script type="module">
+const frame=document.querySelector('iframe'),checks=[];
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function until(fn,label){for(let i=0;i<300;i++){if(await fn())return;await wait(30);}throw Error('Timeout '+label);}
+function check(ok,label){if(!ok)throw Error(label);checks.push(label);}
+const moduleInFrame=path=>frame.contentWindow.eval('import('+JSON.stringify(new URL(path,frame.contentDocument.baseURI).href)+')');
+async function about(){frame.contentDocument.querySelector('[data-page="about"]').click();await until(()=>frame.contentDocument.querySelector('#runningBuild'),'About');}
+try{
+ await until(()=>frame.contentDocument.querySelector('#page-home .page-head'),'boot');
+ await until(()=>frame.contentWindow.navigator.serviceWorker.controller,'first control');
+ const a=(await moduleInFrame('build-info.js')).buildInfo;
+ check(a.prepared&&a.build.length===64&&a.sourceRevision.startsWith('sha256:'),'prepared content revision is embedded in loaded module');
+ await about();
+ check(frame.contentDocument.querySelector('#runningBuild').textContent.includes(a.build),'About displays loaded build A');
+ check(frame.contentDocument.querySelector('#appVersion').textContent===a.version,'navigation displays actual version');
+ const getWorkerInfo=worker=>new Promise(resolve=>{const channel=new MessageChannel();channel.port1.onmessage=e=>resolve(e.data);worker.postMessage({type:'GET_BUILD'},[channel.port2]);});
+ const workerA=await getWorkerInfo(frame.contentWindow.navigator.serviceWorker.controller);
+ check(workerA.build===a.build&&(await caches.keys()).includes('lumen-shell-'+a.build),'worker metadata and cache identity equal running build');
+ const b=await (await fetch('/__publish',{method:'POST'})).json();
+ check(b.build!==a.build&&b.version===a.version,'changed CSS creates a unique build without version bump');
+ const updates=await moduleInFrame('src/services/updateService.js');
+ const latest=await updates.checkForUpdate({force:true});
+ check(latest.available&&latest.current.build===a.build&&latest.latest.build===b.build,'current cached A and latest server B stay distinct');
+ await about();frame.contentDocument.querySelector('#availableBuild').nextElementSibling.click();
+ await until(()=>frame.contentDocument.querySelector('#availableBuild').textContent.includes(b.build),'server label B');
+ check(frame.contentDocument.querySelector('#runningBuild').textContent.includes(a.build),'server check cannot relabel running assets');
+ const registration=await frame.contentWindow.navigator.serviceWorker.getRegistration();
+ await registration.update();await until(()=>registration.waiting,'waiting worker B');
+ check((await moduleInFrame('build-info.js')).buildInfo.build===a.build,'waiting update never changes loaded build');
+ const controllerA=frame.contentWindow.navigator.serviceWorker.controller;
+ check((await getWorkerInfo(controllerA)).build===a.build,'waiting update leaves current controller A');
+ void updates.applyUpdateAndReload();
+ await until(async()=>{try{return (await moduleInFrame('build-info.js')).buildInfo.build===b.build;}catch{return false;}},'reload B');
+ await until(()=>frame.contentDocument.querySelector('#page-home .page-head'),'B boot');
+ await about();
+ check(frame.contentDocument.querySelector('#runningBuild').textContent.includes(b.build),'accepted update and reload show B');
+ check((await getWorkerInfo(frame.contentWindow.navigator.serviceWorker.controller)).build===b.build,'new worker reports B');
+ // A remains available to old tabs rather than substituting B modules.
+ check((await fetch(new URL('builds/'+a.build+'/build-info.js',location.origin))).ok,'old immutable resources survive controller change');
+ const broken=await (await fetch('/__broken-publish',{method:'POST'})).json();
+ const regB=await frame.contentWindow.navigator.serviceWorker.getRegistration();
+ let installing;
+ regB.addEventListener('updatefound',()=>{installing=regB.installing;});
+ await regB.update();await until(()=>installing?.state==='redundant','broken install rejected');
+ check(!regB.waiting&&(await getWorkerInfo(frame.contentWindow.navigator.serviceWorker.controller)).build===b.build,'corrupt deployment cannot replace complete B worker');
+ check(!(await caches.keys()).includes('lumen-shell-'+broken.build),'failed integrity check never commits partial cache');
+ await fetch('/__offline',{method:'POST'});
+ frame.contentWindow.location.reload();
+ await wait(200);await until(()=>frame.contentDocument.querySelector('#page-home .page-head'),'offline boot');
+ await about();
+ check(frame.contentDocument.querySelector('#runningBuild').textContent.includes(b.build),'offline reload retains exact B build');
+ const offline=await (await moduleInFrame('src/services/updateService.js')).checkForUpdate({force:true});
+ check(!offline.available&&offline.current.build===b.build&&!offline.latest,'offline response does not impersonate latest server build');
+ const text='PASS '+checks.length+' build lifecycle browser checks\n'+checks.join('\n');document.querySelector('#result').textContent=text;await fetch('/__result',{method:'POST',body:text});
+}catch(error){const text='FAIL '+error.stack+'\n'+checks.join('\n');document.querySelector('#result').textContent=text;await fetch('/__result',{method:'POST',body:text});}
+</script>
