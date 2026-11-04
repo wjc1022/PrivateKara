@@ -1,0 +1,43 @@
+﻿<!doctype html><meta charset="utf-8"><title>Manual update checks</title>
+<body><div id="about"></div><script type="module">
+import { renderAbout } from '../src/pages/about.js';
+import { Settings, Songs, Lyrics } from '../src/database/db.js';
+let count=0;
+const check=(value,message)=>{if(!value)throw Error(message);count++;};
+try {
+  await Songs.add({id:'retained-song',title:'Retained',audioBlob:new Blob(['media'])},'raw lyrics');
+  await Settings.set('manual-update-test', {lyrics:'retained',setting:42});
+  await (await caches.open('unrelated-cache')).put('/unrelated',new Response('retained'));
+  await navigator.serviceWorker.register('../sw.js');
+  await navigator.serviceWorker.ready;
+  if(!navigator.serviceWorker.controller) await new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));
+  const original=await (await fetch('../version.json')).json();
+  renderAbout(document.querySelector('#about'),original.version);
+  check(document.querySelector('.app-version').textContent===original.version,'About version');
+  await fetch('/__release');
+  check(document.querySelector('.app-version').textContent===original.version,'running page version stable');
+  const latest=await (await fetch('../version.json')).json();
+  check(latest.version==='99.0.0','online revalidation retrieves deployed version');
+  renderAbout(document.querySelector('#about'),latest.version);
+  check(document.querySelector('.app-version').textContent==='99.0.0','new page version');
+  const online=document.createElement('iframe');online.src='../index.html';
+  await new Promise(resolve=>{online.onload=resolve;document.body.append(online);});
+  for(let i=0;i<100&&!online.contentDocument.querySelector('#page-home.active .page-head');i++)await new Promise(r=>setTimeout(r,50));
+  online.contentDocument.querySelector('[data-page=about]').click();
+  check(online.contentDocument.querySelector('.app-version').textContent==='99.0.0','online new document displays deployed version');
+  online.remove();
+  await fetch('/__offline');
+  check((await (await fetch('../version.json')).json()).version==='99.0.0','offline version');
+  const frame=document.createElement('iframe');frame.src='../index.html';
+  await new Promise((resolve,reject)=>{frame.onload=resolve;frame.onerror=reject;document.body.append(frame);});
+  for(let i=0;i<100&&!frame.contentDocument.querySelector('#page-home.active .page-head');i++)await new Promise(r=>setTimeout(r,50));
+  check(!!frame.contentDocument.querySelector('#page-home.active .page-head'),'offline app opens and boots');
+  frame.contentDocument.querySelector('[data-page=about]').click();
+  check(frame.contentDocument.querySelector('.app-version').textContent==='99.0.0','offline main boot passes cached version to About');
+  check(await (await Songs.withMedia('retained-song')).audioBlob.text()==='media','imported media retained');
+  check((await Lyrics.get('retained-song')).text==='raw lyrics','lyrics retained');
+  check((await Settings.get('manual-update-test')).setting===42,'IndexedDB settings retained');
+  check(await (await caches.open('unrelated-cache')).match('/unrelated'),'unrelated cache retained');
+  await fetch('/__result',{method:'POST',body:`PASS ${count} manual update browser checks`});
+} catch(error) {await fetch('/__result',{method:'POST',body:'FAIL '+error.stack});}
+</script>

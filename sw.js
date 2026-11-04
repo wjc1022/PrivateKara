@@ -1,13 +1,6 @@
-/* =========================================================
-   Lumen — sw.js
-   Cache-first for the app shell (HTML, CSS, JS modules, locales,
-   icons), so the app keeps working offline after the first load.
-   Imported songs live in IndexedDB, not behind network requests,
-   so there is no user media to precache here.
-   ========================================================= */
-
-const CACHE_NAME = "lumen-shell-v39";
-
+// Network-first static shell; imported media stays in IndexedDB.
+// This storage namespace is independent of the application version.
+const CACHE_NAME = "lumen-shell-manual";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -34,7 +27,6 @@ const APP_SHELL = [
   "./src/services/sortService.js",
   "./src/services/themeService.js",
   "./src/services/transferService.js",
-  "./src/services/updateService.js",
   "./src/pages/about.js",
   "./src/pages/favorites.js",
   "./src/pages/home.js",
@@ -51,14 +43,12 @@ const APP_SHELL = [
   "./src/components/sideMenu.js",
   "./src/components/songRow.js",
   "./src/components/sortControl.js",
-  "./src/components/updateDialog.js",
   "./src/utils/dom.js",
   "./src/utils/format.js",
   "./src/utils/id.js",
   "./src/utils/zip.js",
   "./src/utils/inflate.js",
   "./src/utils/platform.js",
-  "./src/utils/semver.js",
   "./src/locales/en.json",
   "./src/locales/zh-CN.json",
   "./src/locales/fa.json",
@@ -68,64 +58,41 @@ const APP_SHELL = [
   "./assets/icons/maskable-512.png",
 ];
 
-// Lets the update flow (services/updateService.js) force this worker
-// to activate immediately instead of waiting for all tabs to close.
-self.addEventListener("message", (event) => {
-  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+
+const absolute = path => new URL(path, self.registration.scope).href;
+self.addEventListener("install", event => {
+  event.waitUntil(caches.open(CACHE_NAME).then(cache =>
+    cache.addAll(APP_SHELL.map(path => new Request(absolute(path), { cache: "reload" })))
+  ));
+  // Default lifecycle: close all app windows to activate a changed worker.
 });
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      Promise.all(
-        APP_SHELL.map((url) => cache.add(url).catch((err) => console.warn("SW: skip", url, err)))
-      )
-    )
-  );
-  // Deliberately no self.skipWaiting() here: once a previous version is
-  // already controlling the page, a newly-installed worker should wait
-  // until the user explicitly chooses "Update now" (see
-  // services/updateService.js), rather than silently taking over.
+self.addEventListener("activate", event => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    // Retire only this app's historical numbered shell caches.
+    await Promise.all(keys.filter(key => /^lumen-shell-v\d+$/.test(key)).map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
-});
-
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
-
-  const url = new URL(request.url);
-  // Cache-busted requests (e.g. version.json?t=...) are meant to always
-  // hit the network — caching them would both defeat their purpose and
-  // pollute the cache with one entry per timestamp forever.
-  const isCacheBusted = url.search.length > 0 && url.origin === self.location.origin;
-
-  if (isCacheBusted) {
-    event.respondWith(fetch(request).catch(() => caches.match(request.url.split("?")[0])));
-    return;
-  }
-
-  event.respondWith(
-    caches.match(request).then((cached) => {
+self.addEventListener("fetch", event => {
+  if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  url.search = "";
+  if (!APP_SHELL.some(path => absolute(path) === url.href)) return;
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    let response;
+    try {
+      response = await fetch(event.request, { cache: "no-cache" });
+      if (!response.ok) throw new Error("Shell request failed: " + response.status);
+    } catch (error) {
+      const cached = await cache.match(url.href);
       if (cached) return cached;
-      return fetch(request)
-        .then((response) => {
-          if (response.ok && url.origin === self.location.origin) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          if (request.mode === "navigate") return caches.match("./index.html");
-        });
-    })
-  );
+      throw error;
+    }
+    // Storage failure must not discard a successful network response.
+    try { await cache.put(url.href, response.clone()); }
+    catch (error) { console.warn("SW cache write failed", error); }
+    return response;
+  })());
 });

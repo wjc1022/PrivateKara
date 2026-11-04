@@ -5,12 +5,13 @@
 import { el, clearNode } from "../utils/dom.js";
 import { t } from "../services/i18nService.js";
 
-export function renderAbout(container) {
+export function renderAbout(container, version) {
   clearNode(container);
 
   container.appendChild(el("div", { class: "page-head" }, [
     el("h1", {}, t("about.title")),
     el("p", { class: "sub" }, t("about.subtitle")),
+    el("p", { class: "app-version" }, version),
   ]));
 
   container.appendChild(el("div", { class: "panel glass about-panel" }, [

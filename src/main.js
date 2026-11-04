@@ -27,8 +27,6 @@ import { renderFavorites } from "./pages/favorites.js";
 import { renderPhoneMusic } from "./pages/phoneMusic.js";
 import { renderSettings } from "./pages/settings.js";
 import { renderAbout } from "./pages/about.js";
-import { checkForUpdate } from "./services/updateService.js";
-import { showUpdateAvailable } from "./components/updateDialog.js";
 import { restorePlaybackPreferences } from "./services/audioEngine.js";
 
 // Registered as early as possible, independent of the async boot() chain
@@ -40,7 +38,7 @@ import { restorePlaybackPreferences } from "./services/audioEngine.js";
 // module itself finishes loading after `load` has already fired.
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("sw.js").catch((err) => {
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch((err) => {
     console.warn("Service worker registration failed:", err);
   });
 }
@@ -57,7 +55,7 @@ const PAGES = {
   favorites: (container) => renderFavorites(container),
   phoneMusic: (container, ctx) => renderPhoneMusic(container, ctx),
   settings: (container, ctx) => renderSettings(container, ctx),
-  about: (container) => renderAbout(container),
+  about: (container) => renderAbout(container, appVersion),
 };
 
 let currentPage = "home";
@@ -78,8 +76,15 @@ async function renderPage(pageName) {
 }
 
 let importPanel;
+let appVersion = "\u2014";
 
 async function boot() {
+  // Read once with this page; About navigation must not relabel a running page.
+  try {
+    const response = await fetch("version.json", { cache: "no-cache" });
+    if (response.ok) appVersion = (await response.json()).version || "\u2014";
+  } catch (error) { console.warn("Application version unavailable:", error); }
+
   await initI18n();
   await initTheme();
   await restorePlaybackPreferences();
@@ -100,13 +105,6 @@ async function boot() {
   onLanguageChange(() => renderPage(currentPage));
 
   await renderPage("home");
-
-  // Fire-and-forget: never blocks boot, and checkForUpdate() itself
-  // swallows offline/network failures and respects its own cache
-  // interval, so this is safe to call on every page load.
-  checkForUpdate().then((result) => {
-    if (result.available) showUpdateAvailable(result);
-  }).catch(() => {});
 }
 
 boot().catch(error=>{console.error(error);document.body.textContent='PrivateKara initialization failed: '+error.message;});
