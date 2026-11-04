@@ -19,7 +19,7 @@ The following capabilities are implemented and confirmed against the source code
 - **Video presentation:** inline playback, subtitle toggle, responsive controls, and controls that hide while playing. At a usable player content width of at least 656 CSS px, video and a dedicated physical-right lyric region remain separate; below that width lyrics are hidden and video takes the available area. There are no stacked or overlaid video lyrics. Lyrics use fixed 18px typography with color-only line highlighting and Enhanced LRC word colors. The existing fullscreen/orientation page-fill/rotation fallback is unchanged; page fill does not remove browser chrome. See [layout rules and validation](docs/PLAYER_LAYOUT.md).
 - **Foreground playback:** requests Screen Wake Lock when supported. Backgrounding the page pauses playback; returning leaves it paused until you press Play.
 - **Backup and offline support:** JSON library backup/restore and selective Lumen Music Package (`.lmp`) import/export, including media, instrumentals, lyrics, and library records. A service worker caches the app shell for offline use after a successful initial load; imported media remains in local browser storage.
-- **Preferences and diagnostics:** English, Simplified Chinese, and Persian UI; dark/light/system themes; player-button visibility settings; sleep timer; update checks; and local resource diagnostics in Settings.
+- **Preferences and diagnostics:** English, Simplified Chinese, and Persian UI; dark/light/system themes; player-button visibility settings; sleep timer; and local resource diagnostics in Settings.
 
 Recent items and play counts exist locally, but they are basic selection records rather than a meaningful record of completed karaoke performances.
 
@@ -77,3 +77,11 @@ These are planned directions, not additional implemented capabilities:
 The source code is licensed under the **MIT License**; see [LICENSE](./LICENSE), which retains **Copyright (c) 2026 Lumen contributors** and the original MIT terms, and adds **Copyright (c) 2026 Junchao Wen** for original contributions to PrivateKara. The new notice supplements and does not replace the upstream copyright. That license does not grant rights to imported music, video, lyrics, or cover art.
 
 The existing [usage guide](./HOW_TO_USE.md) and [package specification](./LMP_SPECIFICATION.md) provide legacy reference material; some instructions and format details predate the current implementation and version-3 formats described above.
+
+## Manual releases
+
+Edit only `version.json` for the version, deploy all files together, then refresh online and check About. The version is read once at page startup. Static files use network-first with HTTP revalidation and cached fallback offline; no cache-version bump is needed.
+
+For the first upgrade from the old cache-first worker, or when changing `sw.js`, open online to allow installation, close **all** site tabs and installed-app windows, then reopen online. Refresh alone may leave the worker waiting. On iOS fully close the installed app and Safari tabs; activation timing needs device validation. Do not clear site data or uninstall, which can remove your library.
+
+Finish the initial online load before going offline. Offline reopening uses cached files. Deploy completely before refreshing: partial deployment or network failure during loading can mix files; this is not an atomic release system. The About version identifies the startup version.json, not verified hashes of every file. Hosting/CDN must actually serve the new files. Browser storage eviction remains possible.
