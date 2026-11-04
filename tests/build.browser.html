@@ -1,0 +1,83 @@
+<!doctype html><meta charset="utf-8"><title>Build lifecycle checks</title>
+<pre id="result">RUNNING</pre><iframe src="../index.html"></iframe>
+<script type="module">
+const frame=document.querySelector('iframe'),checks=[];
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function until(fn,label){for(let i=0;i<300;i++){if(await fn())return;await wait(30);}throw Error('Timeout '+label);}
+function check(ok,label){if(!ok)throw Error(label);checks.push(label);}
+const moduleInFrame=path=>frame.contentWindow.eval('import('+JSON.stringify(new URL(path,frame.contentDocument.baseURI).href)+')');
+async function about(){frame.contentDocument.querySelector('[data-page="about"]').click();await until(()=>frame.contentDocument.querySelector('#runningBuild'),'About');}
+try{
+ await until(()=>frame.contentDocument.querySelector('#page-home .page-head'),'boot');
+ await until(()=>frame.contentWindow.navigator.serviceWorker.controller,'first control');
+ const a=(await moduleInFrame('src/services/versionService.js')).buildInfo;
+ check(Number.isSafeInteger(a.build),'manual build number is loaded from version.json');
+ await about();
+ check(frame.contentDocument.querySelector('#runningBuild').textContent.includes(a.build),'About displays loaded build A');
+ check(frame.contentDocument.querySelector('#appVersion').textContent===a.version,'navigation displays actual version');
+ const getWorkerInfo=worker=>new Promise(resolve=>{const channel=new MessageChannel();channel.port1.onmessage=e=>resolve(e.data);worker.postMessage({type:'GET_BUILD'},[channel.port2]);});
+ const workerA=await getWorkerInfo(frame.contentWindow.navigator.serviceWorker.controller);
+ check(workerA.build===a.build&&(await caches.keys()).includes('lumen-shell-build-'+a.build),'worker metadata and cache identity equal running build');
+ const beforeDB=await moduleInFrame('src/database/db.js');
+ await beforeDB.Songs.add({id:'build-media',title:'Preserved media',audioBlob:new frame.contentWindow.Blob(['test'],{type:'audio/wav'})});
+ await beforeDB.Lyrics.save('build-media','[00:00]Test');
+ await beforeDB.Settings.set('build-test','keep');
+ const unrelated=await caches.open('unrelated-test-cache');await unrelated.put('/keep',new Response('keep'));
+ const b=await (await fetch('/__publish',{method:'POST'})).json();
+ check(b.build!==a.build&&b.version===a.version,'incrementing build creates an update without changing application version');
+ const updates=await moduleInFrame('src/services/updateService.js');
+ const latest=await updates.checkForUpdate({force:true});
+ check(latest.available&&latest.current.build===a.build&&latest.latest.build===b.build,'current cached A and latest server B stay distinct');
+ await about();frame.contentDocument.querySelector('#availableBuild').nextElementSibling.click();
+ await until(()=>frame.contentDocument.querySelector('#availableBuild').textContent.includes(b.build),'server label B');
+ check(frame.contentDocument.querySelector('#runningBuild').textContent.includes(a.build),'server check cannot relabel running assets');
+ const registration=await frame.contentWindow.navigator.serviceWorker.getRegistration();
+ await frame.contentWindow.navigator.serviceWorker.register(new URL('sw.js?build='+b.build,frame.contentDocument.baseURI),{scope:new URL('./',frame.contentDocument.baseURI).href,updateViaCache:'none'});await until(()=>registration.waiting,'waiting worker B');
+ check((await moduleInFrame('src/services/versionService.js')).buildInfo.build===a.build,'waiting update never changes loaded build');
+ const controllerA=frame.contentWindow.navigator.serviceWorker.controller;
+ check((await getWorkerInfo(controllerA)).build===a.build,'waiting update leaves current controller A');
+ const dialog=await moduleInFrame('src/components/updateDialog.js');dialog.showUpdateAvailable(latest);
+ const modal=()=>frame.contentDocument.querySelector('.lmp-modal.open');
+ check(modal().textContent.includes(a.build)&&modal().textContent.includes(b.build),'confirmation displays current and latest builds');
+ await wait(100);check(frame.contentWindow.navigator.serviceWorker.controller===controllerA,'showing update prompt does not activate worker');
+ modal().querySelector('.btn.ghost').click();await until(()=>!modal(),'remind later closes prompt');
+ check((await updates.checkForUpdate()).reason==='dismissed','later dismisses this build without activation');
+ dialog.showUpdateAvailable(latest);
+ let loads=0;frame.addEventListener('load',()=>loads++);
+ modal().querySelector('.btn.primary').click();
+ await until(async()=>{try{return (await moduleInFrame('src/services/versionService.js')).buildInfo.build===b.build;}catch{return false;}},'reload B');
+ await until(()=>frame.contentDocument.querySelector('#page-home .page-head'),'B boot');
+ await about();
+ check(frame.contentDocument.querySelector('#runningBuild').textContent.includes(b.build),'accepted update and reload show B');
+ check((await getWorkerInfo(frame.contentWindow.navigator.serviceWorker.controller)).build===b.build,'new worker reports B');
+ check(loads===1,'one confirmation reloads the application exactly once');
+ const afterDB=await moduleInFrame('src/database/db.js');
+ check((await afterDB.Songs.withMedia('build-media')).audioBlob.size===4,'imported media survives update and reload');
+ check((await afterDB.Lyrics.get('build-media')).text==='[00:00]Test','lyrics survive update');
+ check(await afterDB.Settings.get('build-test')==='keep','existing settings survive update');
+ check(await (await unrelated.match('/keep')).text()==='keep','unrelated cached response survives activation');
+ // Exercise the actual acceptance path with no pre-existing waiting worker.
+ const c=await (await fetch('/__publish',{method:'POST'})).json();
+ const serviceB=await moduleInFrame('src/services/updateService.js');
+ void serviceB.applyUpdateAndReload(undefined,c);
+ await until(async()=>{try{return (await moduleInFrame('src/services/versionService.js')).buildInfo.build===c.build;}catch{return false;}},'direct update C');
+ await until(()=>frame.contentDocument.querySelector('#page-home .page-head'),'C boot');
+ check((await getWorkerInfo(frame.contentWindow.navigator.serviceWorker.controller)).build===c.build,'acceptance installs newer build and reloads without a waiting worker');
+ const incomplete=await (await fetch('/__incomplete',{method:'POST'})).json();
+ const serviceC=await moduleInFrame('src/services/updateService.js');
+ check(!await serviceC.applyUpdateAndReload(undefined,incomplete),'missing shell asset rejects update');
+ check((await moduleInFrame('src/services/versionService.js')).buildInfo.build===c.build,'failed installation preserves current page');
+ check(!(await caches.keys()).includes('lumen-shell-build-'+incomplete.build),'failed installation removes its new partial cache');
+ await fetch('/__offline',{method:'POST'});
+ frame.contentWindow.location.reload();
+ await wait(200);await until(()=>frame.contentDocument.querySelector('#page-home .page-head'),'offline boot');
+ await about();
+ check(frame.contentDocument.querySelector('#runningBuild').textContent.includes(c.build),'offline reload retains installed C build');
+ const offlineDB=await moduleInFrame('src/database/db.js');
+ check((await offlineDB.Songs.withMedia('build-media')).audioBlob.size===4,'media available after offline reopen');
+ check((await offlineDB.Lyrics.get('build-media')).text==='[00:00]Test'&&await offlineDB.Settings.get('build-test')==='keep','lyrics and settings remain available offline');
+ const offline=await (await moduleInFrame('src/services/updateService.js')).checkForUpdate({force:true});
+ check(!offline.available&&offline.current.build===c.build&&!offline.latest,'offline response does not impersonate latest server build');
+ const text='PASS '+checks.length+' build lifecycle browser checks\n'+checks.join('\n');document.querySelector('#result').textContent=text;await fetch('/__result',{method:'POST',body:text});
+}catch(error){const text='FAIL '+error.stack+'\n'+checks.join('\n');document.querySelector('#result').textContent=text;await fetch('/__result',{method:'POST',body:text});}
+</script>

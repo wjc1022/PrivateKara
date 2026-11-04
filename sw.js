@@ -1,18 +1,22 @@
-/* =========================================================
-   Lumen — sw.js
-   Cache-first for the app shell (HTML, CSS, JS modules, locales,
-   icons), so the app keeps working offline after the first load.
-   Imported songs live in IndexedDB, not behind network requests,
-   so there is no user media to precache here.
-   ========================================================= */
-
-const CACHE_NAME = "lumen-shell-v39";
-
+// version.json is the only release version source; its build selects the worker URL.
+const BUILD = Number(new URL(self.location.href).searchParams.get('build'));
+const CACHE_NAME = 'lumen-shell-build-' + BUILD;
+const absolute = path => new URL(path, self.registration.scope).href;
+// Bridge the unversioned sw.js registration shipped on main. Store pending and
+// active identities separately so installation cannot relabel an active worker.
+const LEGACY = !new URL(self.location.href).searchParams.has('build');
+const LEGACY_CACHE = 'lumen-shell-migration';
+async function shellName() {
+  if (!LEGACY) return CACHE_NAME;
+  const metadata = await caches.open(LEGACY_CACHE);
+  // controllerchange may precede completion of the first activation event.
+  const active = await metadata.match(absolute('__active_build')) || await metadata.match(absolute('__pending_build'));
+  if (!active) throw Error('Legacy worker identity unavailable');
+  return 'lumen-shell-build-' + (await active.json()).build;
+}
 const APP_SHELL = [
-  "./",
   "./index.html",
   "./manifest.json",
-  "./version.json",
   "./src/styles/main.css",
   "./src/main.js",
   "./src/lyrics/lrc.mjs",
@@ -35,6 +39,7 @@ const APP_SHELL = [
   "./src/services/themeService.js",
   "./src/services/transferService.js",
   "./src/services/updateService.js",
+  "./src/services/versionService.js",
   "./src/pages/about.js",
   "./src/pages/favorites.js",
   "./src/pages/home.js",
@@ -68,64 +73,62 @@ const APP_SHELL = [
   "./assets/icons/maskable-512.png",
 ];
 
-// Lets the update flow (services/updateService.js) force this worker
-// to activate immediately instead of waiting for all tabs to close.
-self.addEventListener("message", (event) => {
-  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') void self.skipWaiting();
+  if (event.data?.type === 'GET_BUILD') event.waitUntil((async () => {
+    const cache = await caches.open(await shellName());
+    const response = await cache.match(absolute('version.json'));
+    event.ports[0]?.postMessage(response ? await response.json() : null);
+  })());
 });
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      Promise.all(
-        APP_SHELL.map((url) => cache.add(url).catch((err) => console.warn("SW: skip", url, err)))
-      )
-    )
-  );
-  // Deliberately no self.skipWaiting() here: once a previous version is
-  // already controlling the page, a newly-installed worker should wait
-  // until the user explicitly chooses "Update now" (see
-  // services/updateService.js), rather than silently taking over.
+self.addEventListener('install', event => {
+  event.waitUntil((async () => {
+    const response = await fetch(absolute('version.json') + '?install=' + BUILD, { cache: 'no-store' });
+    if (!response.ok) throw Error('Version unavailable');
+    const info = await response.clone().json();
+    if (!Number.isSafeInteger(info.build) || info.build < 1 || (!LEGACY && info.build !== BUILD)) throw Error('Release changed; check for updates again');
+    const name = 'lumen-shell-build-' + info.build;
+    const existed = (await caches.keys()).includes(name);
+    const cache = await caches.open(name);
+    try {
+      await cache.addAll(APP_SHELL.map(path => new Request(absolute(path), { cache: 'reload' })));
+      await cache.put(absolute('version.json'), response);
+      if (LEGACY) {
+        const metadata = await caches.open(LEGACY_CACHE);
+        await metadata.put(absolute('__pending_build'), new Response(JSON.stringify(info)));
+      }
+    } catch (error) { if (!existed) await caches.delete(name); throw error; }
+  })());
+  // Existing clients explicitly accept a waiting worker before activation.
 });
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    if (LEGACY) {
+      const metadata = await caches.open(LEGACY_CACHE);
+      const pending = await metadata.match(absolute('__pending_build'));
+      if (!pending) throw Error('Legacy installation identity unavailable');
+      await metadata.put(absolute('__active_build'), pending);
+    }
+    const name = await shellName();
+    // Never delete unrelated caches or IndexedDB media.
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key.startsWith('lumen-shell-') && key !== name && !(LEGACY && key === LEGACY_CACHE)).map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
-
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
-
-  const url = new URL(request.url);
-  // Cache-busted requests (e.g. version.json?t=...) are meant to always
-  // hit the network — caching them would both defeat their purpose and
-  // pollute the cache with one entry per timestamp forever.
-  const isCacheBusted = url.search.length > 0 && url.origin === self.location.origin;
-
-  if (isCacheBusted) {
-    event.respondWith(fetch(request).catch(() => caches.match(request.url.split("?")[0])));
-    return;
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url), scope = new URL(self.registration.scope);
+  if (url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
+  const path = url.pathname.slice(scope.pathname.length);
+  if (path === 'version.json' && url.search) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' })); return;
   }
-
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request)
-        .then((response) => {
-          if (response.ok && url.origin === self.location.origin) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          if (request.mode === "navigate") return caches.match("./index.html");
-        });
-    })
-  );
+  const asset = path || 'index.html';
+  if (!APP_SHELL.some(item => absolute(item) === absolute(asset)) && asset !== 'version.json') return;
+  event.respondWith((async () => {
+    const cache = await caches.open(await shellName());
+    return await cache.match(absolute(asset)) || fetch(event.request);
+  })());
 });

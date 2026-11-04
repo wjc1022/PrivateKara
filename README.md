@@ -25,7 +25,7 @@ Recent items and play counts exist locally, but they are basic selection records
 
 ## Setup
 
-The app uses plain HTML, CSS, and JavaScript ES modules. There are no npm dependencies or build steps.
+The app uses plain HTML, CSS, and JavaScript ES modules. There are no npm dependencies or build steps. Serve repository files directly; see [version maintenance and releases](docs/BUILD_IDENTIFICATION.md).
 
 Repository: [wjc1022/PrivateKara](https://github.com/wjc1022/PrivateKara). See the [rename verification record](./docs/REPOSITORY_RENAME.md) for completed checks and remaining deployment validation.
 

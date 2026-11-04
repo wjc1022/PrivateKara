@@ -13,7 +13,7 @@ Read the agreed Issue, [README.md](README.md), [roadmap](docs/ROADMAP.md), relev
 - `src/services/audioEngine.js` owns playback. Player UI is in `src/components/miniPlayer.js`, `playerSheet.js`, and `playerLyrics.js`. Lyrics follow active media `currentTime`; protect asynchronous song changes against stale results.
 - `src/database/db.js` owns library storage. Import/backup services are in `src/services/importService.js`, `lyricFile.js`, `transferService.js`, and `lmpService.js`. `src/lyrics/lrc.mjs` already parses Enhanced LRC word tags.
 - Localize UI through `src/locales/en.json`, `zh-CN.json`, and `fa.json`; respect Persian RTL. Lyric language is independent of UI language.
-- `sw.js` caches the app shell. Inspect resource coverage and cache lifecycle for runtime shell changes; documentation-only work does not require a cache bump.
+- `version.json` is the single manually maintained application version/build source. Increment its integer build for each release; `sw.js` uses that number for its shell cache. Preserve explicit update activation and offline storage. See [release guidance](docs/BUILD_IDENTIFICATION.md).
 
 ## Data and compatibility
 

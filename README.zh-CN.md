@@ -25,7 +25,7 @@ PrivateKara 是一款优先面向手机的渐进式 Web 应用，主要用于实
 
 ## 运行方式
 
-应用使用原生 HTML、CSS 和 JavaScript ES 模块，无 npm 依赖，也无需构建。
+应用使用原生 HTML、CSS 和 JavaScript ES 模块，无 npm 依赖，也无需构建。直接静态托管仓库文件；详见[版本维护与发布](docs/BUILD_IDENTIFICATION.zh-CN.md)。
 
 仓库：[wjc1022/PrivateKara](https://github.com/wjc1022/PrivateKara)。已完成的检查和待验证的部署事项见[重命名验证记录](./docs/REPOSITORY_RENAME.md)。
 
