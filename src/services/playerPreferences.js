@@ -1,5 +1,5 @@
 // Visibility only: never changes playback modes.
-export const buttonKeys = ['shuffle','repeat','favorite','queue','variant','subtitles','fullscreen'];
+export const buttonKeys = ['shuffle','repeat','favorite','queue','variant','subtitles'];
 export function getPlayerButtons() {
  let saved; try { saved=JSON.parse(localStorage.getItem('lumen.playerButtons')); } catch {}
  return Object.fromEntries(buttonKeys.map(k=>[k,saved?.[k]!==false]));

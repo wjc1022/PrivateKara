@@ -632,8 +632,6 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 #videoHost{flex:1 1 0;min-width:0;min-height:0;background:#000;display:flex}
 #videoHost[hidden]{display:none}
 .player-video{width:100%;height:100%;min-height:0;object-fit:contain}
-.player-sheet-modal.page-fill,.player-sheet-modal:fullscreen{background:var(--bg,#111);width:100%;height:100dvh}
-.player-sheet-modal.page-fill .player-sheet,.player-sheet-modal:fullscreen .player-sheet{inset:0;transform:none;width:100%;max-width:none;height:100%;border-radius:0;padding-top:max(44px,env(safe-area-inset-top));overflow-y:auto}
 
 
 .has-video .player-sheet{overflow-y:auto}.has-video .player-visuals{min-height:80px}
@@ -655,8 +653,7 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
  [dir="rtl"] .has-video #lyricsBody{direction:rtl}
  .landscape-video #lyricsBody{display:none;flex:0 0 var(--lyrics-width);width:var(--lyrics-width);margin-top:max(48px,env(safe-area-inset-top));margin-bottom:max(12px,env(safe-area-inset-bottom));text-align:center}
  .has-video.subtitles-off #lyricsBody,.has-video .player-visuals:not(:has(.lyric-line)) #lyricsBody{display:none}
- .landscape-video .player-sheet,
- .landscape-video.page-fill .player-sheet,.landscape-video:fullscreen .player-sheet{
+ .landscape-video .player-sheet{
   box-sizing:border-box;padding:0 var(--safe-right) 0 var(--safe-left);overflow:hidden;transition:none;
  }
  .landscape-video .player-sheet-handle{display:none}
@@ -686,11 +683,7 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
  .landscape-video.controls-hidden .player-sheet::after{opacity:0;pointer-events:none}
 
 .landscape-video .player-sheet{inset:0;transform:none;width:100%;max-width:none;height:100%;border-radius:0}
-.player-sheet-modal.open.landscape-video:not(.rotated-video) .player-sheet{transform:none}
-.rotated-video .player-sheet,.rotated-video.page-fill .player-sheet,.rotated-video:fullscreen .player-sheet{
- inset:auto;left:50%;top:50%;width:100dvh;height:100dvw;max-width:none;
- transform:translate(-50%,-50%) rotate(90deg);transform-origin:center;
-}
+.player-sheet-modal.open.landscape-video .player-sheet{transform:none}
 .landscape-video .player-sheet-controls{gap:8px;overflow-x:auto}
 
 /* Single video layout threshold: usable content width = 360px video +

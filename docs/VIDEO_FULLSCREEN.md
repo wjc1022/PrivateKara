@@ -1,15 +1,5 @@
-# Video fullscreen and responsive controls (2026-10-27)
+# Historical video fullscreen implementation
 
-Historical fullscreen implementation record. Current width-based layout and fixed lyric typography are documented in [PLAYER_LAYOUT.md](PLAYER_LAYOUT.md). The recorded test counts below are historical, not this revision's verification. CSS rotation does not establish correct physical device or AirPlay orientation; that remains Issue #6 work.
+Superseded by Issue #13: the fullscreen button, native fullscreen requests, orientation locking, page-fill state and CSS rotation fallback have been removed. Expanded video still covers the catalog with responsive layout and controls that hide while playing. See [current layout and validation](PLAYER_LAYOUT.md).
 
-The button requests container fullscreen, then screen.orientation.lock('landscape'). The page immediately provides a landscape surface, including a 90-degree rotated sheet in a portrait viewport. Unsupported or rejected native APIs retain this surface; no device rotation or OS orientation setting change is required. The second tap, close, or native fullscreen exit clears page fill and rotation and releases the orientation lock. The manifest keeps portrait-primary as the installed app default.
-
-Native fullscreen and orientation lock are separate, permission/platform-dependent APIs. Mobile browsers commonly require fullscreen before orientation lock. Safari/iOS and installed PWA behavior varies by OS/version; feature presence alone is insufficient, so rejected promises are handled. Page fill cannot remove browser chrome, and CSS rotation does not change the OS screen orientation. Exiting restores the ordinary viewport layout and releases the lock; a browser may return to the physical device orientation rather than portrait. No real Android or iPhone device was available for this run.
-
-Controls are measured in their actual row using intrinsic button widths and the computed gap. Safe areas, the subtitle sidebar, translations, preferences and resized containers affect the available width. Optional actions move from the end into More only until the row fits, retaining their order; previous/play/next remain directly accessible. Buttons retain at least 44px touch targets and an 8px gap. Extremely small containers can scroll the core row. ResizeObserver and language/font updates recalculate the layout. Rotated seeking uses the screen Y coordinate; video retains object-fit:contain.
-
-Validation: 52 Node tests, 107 base Chromium browser checks (including offline v24 reload), and 60 video Chromium browser checks passed. Video checks cover portrait, landscape, denied-native CSS entry/exit, rotated touch seeking, contain sizing, 1000px all-actions layout, 568px overflow, subtitle/sidebar changes, RTL, auto-hide, preferences and audio/video transitions. Browser output was muted. Real mobile native fullscreen, system orientation lock and installed-PWA transitions still need device acceptance testing.
-
-References:
-- https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
-- https://developer.mozilla.org/en-US/docs/Web/API/ScreenOrientation/lock
+Earlier fullscreen experiments and test counts are historical evidence only; see [development history](history/DEVELOPMENT_HISTORY.md). Real iPhone Safari, installed-PWA and AirPlay screen-mirroring acceptance remains necessary.

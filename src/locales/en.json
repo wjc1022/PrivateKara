@@ -121,9 +121,7 @@
     "noInstrumental": "Vocals / No instrumental",
     "emptyQueue": "Your queue is empty.",
     "queue": "Playback queue",
-    "fullscreen": "Fullscreen",
     "mediaFailed": "Cannot play this media: unsupported encoding or unreadable file.",
-    "exitFullscreen": "Exit fullscreen",
     "showSubtitles": "Show subtitles",
     "hideSubtitles": "Hide subtitles",
     "video": "Video",
@@ -252,8 +250,7 @@
     "favorite": "Favorite",
     "queue": "Queue",
     "variant": "Vocals / instrumental",
-    "subtitles": "Subtitles",
-    "fullscreen": "Fullscreen"
+    "subtitles": "Subtitles"
   },
   "diagnostics": {
     "history": "Operation history (selected item)",

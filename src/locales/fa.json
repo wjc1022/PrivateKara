@@ -121,9 +121,7 @@
     "noInstrumental": "Vocals / No instrumental",
     "emptyQueue": "صف پخش تو خالی است.",
     "queue": "Playback queue",
-    "fullscreen": "تمام‌صفحه",
     "mediaFailed": "پخش رسانه ممکن نیست؛ قالب یا خواندن فایل را بررسی کنید.",
-    "exitFullscreen": "خروج از تمام‌صفحه",
     "showSubtitles": "نمایش زیرنویس",
     "hideSubtitles": "پنهان کردن زیرنویس",
     "video": "ویدیو",
@@ -252,8 +250,7 @@
     "favorite": "علاقه‌مندی",
     "queue": "صف",
     "variant": "خواننده / بی‌کلام",
-    "subtitles": "زیرنویس",
-    "fullscreen": "تمام‌صفحه"
+    "subtitles": "زیرنویس"
   },
   "diagnostics": {
     "title": "عیب‌یابی منابع محلی",
