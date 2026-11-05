@@ -623,6 +623,12 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 
 .library-song-card{ min-width:0; }
 .library-song-card .song-row{ width:100%; }
+.library-song-list{ container-type:inline-size; grid-template-columns:minmax(0,1fr); }
+.library-song-card > .song-resources{ min-width:0; overflow-wrap:anywhere; }
+@container (min-width:720px){
+  .library-song-card{ display:grid; grid-template-columns:minmax(0,1fr) minmax(240px,.65fr); gap:12px; align-items:start; }
+  .library-song-card > .song-resources{ padding:4px 12px; }
+}
 
 .lyric-line.untimed{ color:var(--lyric-text); }
 

@@ -3,7 +3,7 @@
  * ---------------------------------------------------------------
  * First thing users see. If the library is empty, shows the
  * "No music found" empty state with an import CTA. Otherwise shows
- * a recently played shelf, or a prompt to play from the library.
+ * a recently played shelf, falling back to the library without history.
  * ---------------------------------------------------------------
  */
 
@@ -64,10 +64,11 @@ export async function renderHome(container, { onImportRequested }) {
     recentSongs.forEach((song) => list.appendChild(buildRow(song, recentSongs)));
     container.appendChild(list);
   } else {
-    container.appendChild(createEmptyState({
-      title: t("home.noRecentsTitle"),
-      body: t("home.noRecentsBody"),
-    }));
+    container.appendChild(el("h2", { class: "section-label" }, t("library.title")));
+    const librarySongs = allSongs.slice().sort((a, b) => b.dateAdded - a.dateAdded);
+    const list = el("div", { class: "song-list" });
+    librarySongs.forEach((song) => list.appendChild(buildRow(song, librarySongs)));
+    container.appendChild(list);
   }
 
   function refreshPlayingHighlight() {

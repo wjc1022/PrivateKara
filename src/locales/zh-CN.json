@@ -16,8 +16,6 @@
     "title": "首页",
     "subtitle": "你的音乐，汇聚于此。",
     "recentlyPlayed": "最近播放",
-    "noRecentsTitle": "暂无播放记录",
-    "noRecentsBody": "从音乐库播放歌曲后，它们会显示在这里。",
     "emptyTitle": "暂无音乐",
     "emptyBody": "导入歌曲，开始建立音乐库。所有内容均保存在本机。",
     "importFirst": "导入第一首歌曲",
