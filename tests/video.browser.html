@@ -98,8 +98,9 @@ check(currentBottom.offsetHeight>54,'bottom long lyric wraps naturally beyond tw
 check(lyricBody.clientHeight>54,'portrait letterbox permits natural multi-line lyrics');
 const hostRect=d.querySelector('#videoHost').getBoundingClientRect(),scale=Math.min(hostRect.width/engine.audioEl.videoWidth,hostRect.height/engine.audioEl.videoHeight),pictureBottom=hostRect.top+(hostRect.height+engine.audioEl.videoHeight*scale)/2;
 check(lyricBody.getBoundingClientRect().top>=pictureBottom,'non-overlap uses actual contain picture bounds');
-check(Math.abs(lyricBody.getBoundingClientRect().bottom-(sheetNode.getBoundingClientRect().bottom))<2,'bottom anchored to player container with bottom inset '+JSON.stringify({lyrics:lyricBody.getBoundingClientRect().toJSON(),sheet:sheetNode.getBoundingClientRect().toJSON()}));
+check(Math.abs(lyricBody.getBoundingClientRect().top-pictureBottom)<1.1,'portrait subtitles immediately follow actual picture');
 check(w.getComputedStyle(lyricBody).pointerEvents==='none'&&Number(w.getComputedStyle(d.querySelector('.player-sheet-controls')).zIndex)>Number(w.getComputedStyle(lyricBody).zIndex),'controls layer above noninteractive subtitles');
+check(w.getComputedStyle(currentBottom).webkitTextSizeAdjust==='100%','bottom prevents independent iOS text inflation');
 check(w.getComputedStyle(currentBottom).lineHeight==='27px','bottom uses compact 1.5 line height without changing side typography');
 const playLayerButton=d.querySelector('#sheetPlayBtn'),playLayerRect=playLayerButton.getBoundingClientRect();lyricBody.style.pointerEvents='auto';
 check(d.elementFromPoint(playLayerRect.left+playLayerRect.width/2,playLayerRect.top+playLayerRect.height/2)?.closest('#sheetPlayBtn')===playLayerButton,'controls stay on top even if subtitle hit testing is enabled');lyricBody.style.removeProperty('pointer-events');
@@ -107,8 +108,8 @@ check(Number(w.getComputedStyle(d.querySelector('#sheetMorePanel')).zIndex)>Numb
 check(lyricBody.scrollTop===0,'bottom never auto-centers');
 sheetNode.style.setProperty('--safe-left','40px');sheetNode.style.setProperty('--safe-right','44px');sheetNode.style.setProperty('--safe-bottom','24px');await wait(150);
 const safeLyrics=lyricBody.getBoundingClientRect();check(Math.abs(safeLyrics.left-sheetNode.getBoundingClientRect().left-41)<1&&Math.abs(sheetNode.getBoundingClientRect().right-safeLyrics.right-45)<1,'bottom respects asymmetric horizontal safe areas');
-check(Math.abs(sheetNode.getBoundingClientRect().bottom-safeLyrics.bottom-25)<1,'bottom respects simulated 24px bottom safe area');
-check(safeLyrics.bottom>d.querySelector('.player-sheet-controls').getBoundingClientRect().top,'subtitles use bottom space underneath controls');
+check(safeLyrics.bottom<=d.querySelector('#sheetProgressTrack').getBoundingClientRect().top+.1,'portrait subtitles stay above safe-area-adjusted footer');
+check(safeLyrics.bottom<=d.querySelector('.player-sheet-controls').getBoundingClientRect().top,'portrait subtitles avoid transport before overlaying video');
 sheetNode.style.removeProperty('--safe-left');sheetNode.style.removeProperty('--safe-right');sheetNode.style.removeProperty('--safe-bottom');await wait(100);
 for(const [pw,ph] of [[768,1024],[820,1180]]){
  frame.style.width=pw+'px';frame.style.height=ph+'px';await wait(150);modeIs('bottom','wide portrait still bottom '+pw);
@@ -224,7 +225,8 @@ await engine.selectSong(tallSongs[0],[tallSongs[0]]);engine.audioEl.pause();awai
 frame.style.width='390px';frame.style.height='844px';await wait(150);modeIs('bottom','track switch preserves portrait bottom');
 check(engine.audioEl.videoWidth===180&&engine.audioEl.videoHeight===320,'actual tall video metadata');
 const tallHost=d.querySelector('#videoHost').getBoundingClientRect(),tallScale=Math.min(tallHost.width/180,tallHost.height/320),tallPictureBottom=tallHost.top+(tallHost.height+320*tallScale)/2;
-check(tallPictureBottom<=lyricBody.getBoundingClientRect().top,'tall portrait uses below-picture blank space at new bottom inset');
+check(tallPictureBottom>lyricBody.getBoundingClientRect().top&&lyricBody.getBoundingClientRect().height<=54.01,'tall portrait overlays video when below-picture space before footer is insufficient');
+check(lyricBody.getBoundingClientRect().bottom<=d.querySelector('#sheetProgressTrack').getBoundingClientRect().top+.1,'tall portrait keeps subtitles above transport');
 const tallBottom=videoRect();await clickMode();equalRect(tallBottom,videoRect(),'tall media bottom/off identical video geometry');await clickMode();
 frame.style.width='1000px';frame.style.height='600px';await wait(100);tap(sub);await wait(100);modeIs('bottom','select bottom for empty lyric regression');check(lyricBody.getBoundingClientRect().height<=54.01,'tall landscape overlap caps at compact two-line height');
 const bare=songs.find(s=>s.title==='local-video');await engine.selectSong(bare,songs);await until(()=>!d.querySelector('.lyric-line'),'no lyrics');check(w.getComputedStyle(d.querySelector('#lyricsBody')).display==='none','no lyrics gives video available width');
