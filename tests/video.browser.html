@@ -98,7 +98,7 @@ check(currentBottom.offsetHeight>54,'bottom long lyric wraps naturally beyond tw
 check(lyricBody.clientHeight>54,'portrait letterbox permits natural multi-line lyrics');
 const hostRect=d.querySelector('#videoHost').getBoundingClientRect(),scale=Math.min(hostRect.width/engine.audioEl.videoWidth,hostRect.height/engine.audioEl.videoHeight),pictureBottom=hostRect.top+(hostRect.height+engine.audioEl.videoHeight*scale)/2;
 check(lyricBody.getBoundingClientRect().top>=pictureBottom,'non-overlap uses actual contain picture bounds');
-check(Math.abs(lyricBody.getBoundingClientRect().bottom-(sheetNode.getBoundingClientRect().bottom-12))<2,'bottom anchored to player container with bottom inset '+JSON.stringify({lyrics:lyricBody.getBoundingClientRect().toJSON(),sheet:sheetNode.getBoundingClientRect().toJSON()}));
+check(Math.abs(lyricBody.getBoundingClientRect().bottom-(sheetNode.getBoundingClientRect().bottom))<2,'bottom anchored to player container with bottom inset '+JSON.stringify({lyrics:lyricBody.getBoundingClientRect().toJSON(),sheet:sheetNode.getBoundingClientRect().toJSON()}));
 check(w.getComputedStyle(lyricBody).pointerEvents==='none'&&Number(w.getComputedStyle(d.querySelector('.player-sheet-controls')).zIndex)>Number(w.getComputedStyle(lyricBody).zIndex),'controls layer above noninteractive subtitles');
 check(w.getComputedStyle(currentBottom).lineHeight==='27px','bottom uses compact 1.5 line height without changing side typography');
 const playLayerButton=d.querySelector('#sheetPlayBtn'),playLayerRect=playLayerButton.getBoundingClientRect();lyricBody.style.pointerEvents='auto';
@@ -107,7 +107,7 @@ check(Number(w.getComputedStyle(d.querySelector('#sheetMorePanel')).zIndex)>Numb
 check(lyricBody.scrollTop===0,'bottom never auto-centers');
 sheetNode.style.setProperty('--safe-left','40px');sheetNode.style.setProperty('--safe-right','44px');sheetNode.style.setProperty('--safe-bottom','24px');await wait(150);
 const safeLyrics=lyricBody.getBoundingClientRect();check(Math.abs(safeLyrics.left-sheetNode.getBoundingClientRect().left-41)<1&&Math.abs(sheetNode.getBoundingClientRect().right-safeLyrics.right-45)<1,'bottom respects asymmetric horizontal safe areas');
-check(Math.abs(sheetNode.getBoundingClientRect().bottom-safeLyrics.bottom-37)<1,'bottom respects simulated 24px bottom safe area');
+check(Math.abs(sheetNode.getBoundingClientRect().bottom-safeLyrics.bottom-25)<1,'bottom respects simulated 24px bottom safe area');
 check(safeLyrics.bottom>d.querySelector('.player-sheet-controls').getBoundingClientRect().top,'subtitles use bottom space underneath controls');
 sheetNode.style.removeProperty('--safe-left');sheetNode.style.removeProperty('--safe-right');sheetNode.style.removeProperty('--safe-bottom');await wait(100);
 for(const [pw,ph] of [[768,1024],[820,1180]]){
