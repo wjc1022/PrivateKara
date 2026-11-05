@@ -667,7 +667,7 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
  .landscape-video .player-visuals{flex:1 1 auto;height:100%;min-height:0;gap:var(--visual-gap)}
  .landscape-video .player-sheet-meta,.landscape-video .player-sheet-progress-track,
  .landscape-video .player-sheet-time-row,.landscape-video .player-sheet-controls{
-  position:absolute;left:calc(var(--safe-left) + 4px);right:calc(var(--safe-right) + var(--sidebar-space));width:auto;z-index:2;margin:0;text-shadow:0 1px 4px #000;
+  position:absolute;left:calc(var(--safe-left) + 4px);right:calc(var(--safe-right) + var(--sidebar-space));width:auto;z-index:3;margin:0;text-shadow:0 1px 4px #000;
  }
  .landscape-video .player-sheet-meta{top:max(8px,env(safe-area-inset-top));padding-right:44px;pointer-events:none}
  .landscape-video .player-sheet-title{font-size:16px}
@@ -720,15 +720,15 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
    contain video host identical to off mode; controls retain their own layer. */
 .has-video.subtitles-bottom #lyricsBody{
   display:block;position:absolute;left:var(--safe-left);right:var(--safe-right);
-  bottom:calc(90px + var(--safe-bottom,env(safe-area-inset-bottom)));width:auto;
-  margin:0;padding:0;min-height:0;max-height:3.7em;overflow:hidden;
+  bottom:calc(12px + var(--safe-bottom,env(safe-area-inset-bottom)));width:auto;
+  margin:0;padding:0;min-height:0;max-height:3em;overflow:hidden;line-height:1.5;
   pointer-events:none;z-index:2;scroll-behavior:auto;background:transparent;border-radius:0;
   text-align:center;text-shadow:0 1px 4px #000;
 }
-.has-video.subtitles-bottom #lyricsBody .lyric-line{display:none;padding:0;max-width:none}
+.has-video.subtitles-bottom #lyricsBody .lyric-line{display:none;padding:0;max-width:none;line-height:inherit}
 .has-video.subtitles-bottom #lyricsBody .lyric-line:is(.current,.next){display:block}
 .has-video.subtitles-bottom #lyricsBody:not(:has(.current))::before,
-.has-video.subtitles-bottom #lyricsBody:not(:has(.next))::after{content:'';display:block;height:1.85em}
+.has-video.subtitles-bottom #lyricsBody:not(:has(.next))::after{content:'';display:block;height:1.5em}
 .has-video.subtitles-bottom .player-visuals:not(:has(.lyric-line)) #lyricsBody{display:none}
 
 .has-video.subtitles-bottom #lyricsBody:not(.has-timed-lyrics){display:none}
