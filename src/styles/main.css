@@ -646,7 +646,7 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 
  .landscape-video .player-sheet{
   --safe-left:max(12px,env(safe-area-inset-left));--safe-right:max(12px,env(safe-area-inset-right));
-  --visual-gap:16px;--lyrics-width:clamp(280px,30cqw,360px);
+  --visual-gap:16px;--lyrics-width:clamp(180px,25cqw,280px);
   --sidebar-space:0px;
  }
  .has-video .player-visuals{direction:ltr}
@@ -686,8 +686,9 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 .player-sheet-modal.open.landscape-video .player-sheet{transform:none}
 .landscape-video .player-sheet-controls{gap:8px;overflow-x:auto}
 
-/* Single video layout threshold: usable content width = 360px video +
-   16px gap + 280px lyrics. Container sizing excludes padding/safe areas.
+/* Keep the 656px usable-content threshold independent of lyric sizing.
+   Lyrics take their clamped width first; video fills the remainder.
+   Container sizing excludes padding/safe areas.
    Below it the lyrics are hidden; no stacked or overlay presentation. */
 .player-sheet{container-type:inline-size;container-name:player}
 @container player (min-width:656px){

@@ -45,7 +45,9 @@ function layout(label){
  const v=d.querySelector('#videoHost').getBoundingClientRect(),l=lyricBody.getBoundingClientRect(),area=visuals.getBoundingClientRect(),row=d.querySelector('.player-sheet-controls').getBoundingClientRect();
  check(w.getComputedStyle(engine.audioEl).objectFit==='contain','video contain '+label);
  if(visible){
-  check(v.width>=359.5&&l.width>=279.5,'minimum usable video and lyric widths '+label);
+  const expectedLyrics=Math.max(180,Math.min(usable*.25,280));
+  check(Math.abs(l.width-expectedLyrics)<1,'lyrics clamp width '+label);
+  check(Math.abs(v.width-(area.width-16-expectedLyrics))<1,'video receives remaining width '+label);
   check(l.left>=v.right+15.5&&l.top>=v.top&&l.top<v.bottom&&l.bottom<=v.bottom+1,'physical right separate regions, never stacked or overlaid '+label);
   check(w.getComputedStyle(lyricBody).position==='relative','lyrics stay in normal flow '+label);
   check(row.right<=v.right+1&&row.right<=l.left,'controls stay outside lyric region '+label);
@@ -62,7 +64,7 @@ for(const [width,height] of [[390,844],[568,320],[844,390],[768,1024],[820,1180]
 }
 // Same usable container width with opposite viewport orientations; boundaries
 // and extra padding model constrained hosts and safe-area space independently.
-for(const contentWidth of [655,656,657,760]){
+for(const contentWidth of [655,656,657,720,760,1120,1200]){
  const modes=[];
  for(const [width,height] of [[1000,1200],[1200,800]]){
   frame.style.width=width+'px';frame.style.height=height+'px';
@@ -95,7 +97,7 @@ const modal=d.querySelector('#playerSheetModal'),sub=d.querySelector('#sheetSubt
 const pref=await w.eval('import("/src/services/playerPreferences.js")');
 function tap(node){node.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',pointerId:4}));node.click();}
 layout('immersive landscape');
-check(lr.width>=280&&vr.width>=360,'immersive player retains both minimum region widths');
+check(Math.abs(lr.width-Math.max(180,Math.min(usableWidth()*.25,280)))<1,'immersive player uses new lyric clamp');
 check(Math.abs(d.querySelector('.player-sheet-controls').getBoundingClientRect().right-vr.right)<2,'shared control/sidebar boundary');
 check(d.querySelector('.player-sheet-controls').scrollWidth<=d.querySelector('.player-sheet-controls').clientWidth+1,'measured controls fit dedicated video width');
 frame.style.width='390px';frame.style.height='320px';await wait(120);check(!more.hidden,'actual narrow container offers more');
@@ -120,6 +122,7 @@ check(!d.querySelector('#sheetPrevBtn').hidden&&!d.querySelector('#sheetPlayBtn'
 d.querySelector('#resetPlayerButtons').click();check(pref.buttonKeys.every(k=>pref.getPlayerButtons()[k]),'restore default visibility');
 check(d.querySelector('#sheetVariantBtn').hidden,'default visibility cannot override video variant rule');
 engine.setShuffle(false);while(engine.getRepeatMode()!=='off')await engine.cycleRepeatMode();
+frame.style.width='390px';frame.style.height='320px';await wait(120);check(!more.hidden,'auto-hide menu checks use visible overflow button');
 engine.audioEl.loop=true;engine.seekTo(0);if(engine.audioEl.paused)engine.togglePlay();await until(()=>!engine.audioEl.paused,"service play");tap(d.querySelector('#videoHost'));
 await wait(3250);check(modal.classList.contains('controls-hidden')&&d.querySelector('.player-sheet-controls').inert,'idle playing hides controls and exits focus order');
 const playingBefore=!engine.audioEl.paused;tap(d.querySelector('#videoHost'));check(!modal.classList.contains('controls-hidden')&&!engine.audioEl.paused&&playingBefore,'tap wakes without toggling playback');
