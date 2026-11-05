@@ -453,8 +453,9 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
   text-align:center; padding:24px 6px; margin-top:32px;
   background:var(--bg-elevated); border-radius:var(--radius-md);
 }
+.lyric-line,.has-video.subtitles-bottom #lyricsBody{font-size:18px;font-weight:600;line-height:1.85}
 .lyric-line{
-  font-size:18px; font-weight:600; line-height:1.85; color:var(--lyric-text);
+  color:var(--lyric-text);
   padding:6px 10px; border-radius:10px; max-width:36ch;
   transform:none;
   transition:color .4s var(--ease);
@@ -652,12 +653,12 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 
  .landscape-video .player-sheet{
   --safe-left:max(12px,env(safe-area-inset-left));--safe-right:max(12px,env(safe-area-inset-right));
-  --visual-gap:16px;--lyrics-width:clamp(180px,25cqw,280px);
+  --safe-bottom:env(safe-area-inset-bottom);--visual-gap:16px;--lyrics-width:clamp(180px,25cqw,280px);
   --sidebar-space:0px;
  }
  .has-video .player-visuals{direction:ltr}
  [dir="rtl"] .has-video #lyricsBody{direction:rtl}
- .landscape-video #lyricsBody{display:none;flex:0 0 var(--lyrics-width);width:var(--lyrics-width);margin-top:max(48px,env(safe-area-inset-top));margin-bottom:max(12px,env(safe-area-inset-bottom));text-align:center}
+ .landscape-video #lyricsBody{display:none;flex:0 0 var(--lyrics-width);width:var(--lyrics-width);margin-top:max(48px,env(safe-area-inset-top));margin-bottom:max(12px,var(--safe-bottom));text-align:center}
  .has-video.subtitles-off #lyricsBody,.has-video .player-visuals:not(:has(.lyric-line)) #lyricsBody{display:none}
  .landscape-video .player-sheet{
   box-sizing:border-box;padding:0 var(--safe-right) 0 var(--safe-left);overflow:hidden;transition:none;
@@ -666,22 +667,22 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
  .landscape-video .player-visuals{flex:1 1 auto;height:100%;min-height:0;gap:var(--visual-gap)}
  .landscape-video .player-sheet-meta,.landscape-video .player-sheet-progress-track,
  .landscape-video .player-sheet-time-row,.landscape-video .player-sheet-controls{
-  position:absolute;left:calc(var(--safe-left) + 4px);right:calc(var(--safe-right) + var(--sidebar-space));width:auto;z-index:2;margin:0;text-shadow:0 1px 4px #000;
+  position:absolute;left:calc(var(--safe-left) + 4px);right:calc(var(--safe-right) + var(--sidebar-space));width:auto;z-index:3;margin:0;text-shadow:0 1px 4px #000;
  }
  .landscape-video .player-sheet-meta{top:max(8px,env(safe-area-inset-top));padding-right:44px;pointer-events:none}
  .landscape-video .player-sheet-title{font-size:16px}
  .landscape-video .player-sheet-artist{display:none}
  .landscape-video .player-sheet-secondary-row{display:none}
- .landscape-video .player-sheet-controls{bottom:max(6px,env(safe-area-inset-bottom));gap:4px;flex-wrap:nowrap}
+ .landscape-video .player-sheet-controls{bottom:max(6px,var(--safe-bottom));gap:4px;flex-wrap:nowrap}
  .landscape-video .player-sheet-controls button{flex-shrink:0;min-width:44px;min-height:44px}
  .landscape-video .player-sheet-controls .mini-btn{width:44px;height:44px}
  .landscape-video .player-sheet-controls .mini-btn.play.large{width:44px;height:44px}
- .landscape-video .player-sheet-time-row{bottom:calc(52px + env(safe-area-inset-bottom));margin:0}
- .landscape-video .player-sheet-progress-track{bottom:calc(76px + env(safe-area-inset-bottom))}
+ .landscape-video .player-sheet-time-row{bottom:calc(52px + var(--safe-bottom));margin:0}
+ .landscape-video .player-sheet-progress-track{bottom:calc(76px + var(--safe-bottom))}
  .landscape-video .player-sheet::after{
-  content:'';position:absolute;pointer-events:none;z-index:1;left:var(--safe-left);right:calc(var(--safe-right) + var(--sidebar-space));bottom:0;height:calc(106px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.8));
+  content:'';position:absolute;pointer-events:none;z-index:1;left:var(--safe-left);right:calc(var(--safe-right) + var(--sidebar-space));bottom:0;height:calc(106px + var(--safe-bottom));background:linear-gradient(transparent,rgba(0,0,0,.8));
  }
- .landscape-video .sheet-more-panel,.landscape-video .sheet-panel{position:absolute;z-index:5;bottom:calc(56px + env(safe-area-inset-bottom));left:var(--safe-left);right:calc(var(--safe-right) + var(--sidebar-space));width:auto;max-height:65%;overflow:auto;background:var(--bg,#111)}
+ .landscape-video .sheet-more-panel,.landscape-video .sheet-panel{position:absolute;z-index:5;bottom:calc(56px + var(--safe-bottom));left:var(--safe-left);right:calc(var(--safe-right) + var(--sidebar-space));width:auto;max-height:65%;overflow:auto;background:var(--bg,#111)}
  .landscape-video.controls-hidden .player-sheet-controls,
  .landscape-video.controls-hidden .player-sheet-progress-track,
  .landscape-video.controls-hidden .player-sheet-time-row,
@@ -695,12 +696,12 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 /* Keep the 656px usable-content threshold independent of lyric sizing.
    Lyrics take their clamped width first; video fills the remainder.
    Container sizing excludes padding/safe areas.
-   Below it the lyrics are hidden; no stacked or overlay presentation. */
+   Below it the selected side mode is hidden; bottom mode is independent. */
 .player-sheet{container-type:inline-size;container-name:player}
 @container player (min-width:656px){
- .landscape-video #lyricsBody{display:block}
- .landscape-video:not(.subtitles-off) .player-sheet:has(.lyric-line) > :is(.player-sheet-meta,.player-sheet-progress-track,.player-sheet-time-row,.player-sheet-controls,.sheet-more-panel,.sheet-panel),
- .landscape-video:not(.subtitles-off) .player-sheet:has(.lyric-line)::after{--sidebar-space:calc(var(--lyrics-width) + var(--visual-gap))}
+ .landscape-video.subtitles-side #lyricsBody{display:block}
+ .landscape-video.subtitles-side .player-sheet:has(.lyric-line) > :is(.player-sheet-meta,.player-sheet-progress-track,.player-sheet-time-row,.player-sheet-controls,.sheet-more-panel,.sheet-panel),
+ .landscape-video.subtitles-side .player-sheet:has(.lyric-line)::after{--sidebar-space:calc(var(--lyrics-width) + var(--visual-gap))}
 }
 
 /* Library labels preserve the row's playback background. */
@@ -714,3 +715,21 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 .library-delete-dialog{ width:min(420px,calc(100% - 32px)); border:1px solid var(--panel-border); border-radius:var(--radius-md); padding:24px; background:var(--bg-elevated); color:var(--text); }
 .library-delete-dialog p{ overflow-wrap:anywhere; }
 .library-delete-dialog::backdrop{ background:rgba(0,0,0,.6); }
+
+/* One bottom overlay in both orientations. Absolute placement leaves the
+   contain video host identical to off mode; controls retain their own layer. */
+.has-video.subtitles-bottom #lyricsBody{
+  display:block;position:absolute;left:var(--safe-left);right:var(--safe-right);
+  bottom:var(--safe-bottom,env(safe-area-inset-bottom));width:auto;
+  margin:0;padding:0;min-height:0;max-height:3em;overflow:hidden;line-height:1.5;
+  -webkit-text-size-adjust:100%;text-size-adjust:100%;
+  pointer-events:none;z-index:2;scroll-behavior:auto;background:transparent;border-radius:0;
+  text-align:center;text-shadow:0 1px 4px #000;
+}
+.has-video.subtitles-bottom #lyricsBody .lyric-line{display:none;padding:0;max-width:none;line-height:inherit}
+.has-video.subtitles-bottom #lyricsBody .lyric-line:is(.current,.next){display:block}
+.has-video.subtitles-bottom #lyricsBody:not(:has(.current))::before,
+.has-video.subtitles-bottom #lyricsBody:not(:has(.next))::after{content:'';display:block;height:1.5em}
+.has-video.subtitles-bottom .player-visuals:not(:has(.lyric-line)) #lyricsBody{display:none}
+
+.has-video.subtitles-bottom #lyricsBody:not(.has-timed-lyrics){display:none}

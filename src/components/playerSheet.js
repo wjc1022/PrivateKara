@@ -1,4 +1,4 @@
-import { getPlayerButtons } from '../services/playerPreferences.js';
+import { getPlayerButtons, getLyricMode, nextLyricMode, cycleLyricMode } from '../services/playerPreferences.js';
 /**
  * components/playerSheet.js
  * ---------------------------------------------------------------
@@ -76,7 +76,9 @@ export function initPlayerSheet() {
   const morePanel = el('div',{class:'sheet-more-panel',id:'sheetMorePanel',hidden:true});
   controls.append(moreBtn);secondary.after(morePanel);
   const buttons={shuffle:shuffleBtn,repeat:repeatBtn,favorite:favBtn,queue:queueBtn,variant:variantBtn,subtitles:subtitlesBtn};
-  let subtitles=true, hideTimer, keyboardFocus=false;
+  let audioSubtitles=true, hideTimer, keyboardFocus=false;
+  const orientation = () => landscape.matches ? 'landscape' : 'portrait';
+  let lastMode;
   function isLandscapeVideo() { return modal.classList.contains('open') && getCurrentSong()?.mediaType==='video'; }
   function reveal() {
     clearTimeout(hideTimer);modal.classList.remove('controls-hidden');
@@ -90,11 +92,22 @@ export function initPlayerSheet() {
   function dismissMenus() { morePanel.hidden=true;moreBtn.setAttribute('aria-expanded','false');queuePanel.hidden=true; }
   function layoutButtons() {
     const video=getCurrentSong()?.mediaType==='video',prefs=getPlayerButtons(),wide=isLandscapeVideo();
-    modal.classList.toggle('landscape-video',wide);modal.classList.toggle('subtitles-off',!subtitles);
+    const mode=video ? getLyricMode(orientation()) : (audioSubtitles ? 'side' : 'off');
+    modal.classList.toggle('landscape-video',wide);
+    modal.classList.toggle('subtitles-off',mode==='off');
+    modal.classList.toggle('subtitles-bottom',video && mode==='bottom');
+    modal.classList.toggle('subtitles-side',video && mode==='side');
+    // The bottom overlay belongs to the sheet, outside the clipped video row.
+    // Move the existing full-song DOM; side/audio keep their original flex host.
+    const lyricBody=$('#lyricsBody'), visuals=$('.player-visuals');
+    if (video && mode==='bottom') {
+      if (lyricBody.parentElement!==visuals.parentElement) visuals.after(lyricBody);
+    } else if (lyricBody.parentElement!==visuals) visuals.append(lyricBody);
+    if (mode !== lastMode) { lastMode=mode; lyrics.refresh(); }
     $('#shuffleBtn').hidden=!prefs.shuffle;
     $('#miniFavBtn').hidden=!prefs.favorite;
-    subtitlesBtn.setAttribute('aria-pressed',String(subtitles));
-    subtitlesBtn.dataset.i18n=subtitles?'player.hideSubtitles':'player.showSubtitles';
+    subtitlesBtn.setAttribute('aria-pressed',String(mode!=='off'));
+    subtitlesBtn.dataset.i18n=video ? {side:'player.sideSubtitles',bottom:'player.bottomSubtitles',off:'player.offSubtitles'}[nextLyricMode(orientation(),mode)] : (audioSubtitles?'player.hideSubtitles':'player.showSubtitles');
     subtitlesBtn.textContent=t(subtitlesBtn.dataset.i18n);
     const order=[shuffleBtn,prevBtn,playBtn,nextBtn,repeatBtn,favBtn,variantBtn,queueBtn,subtitlesBtn];
     for(const [key,button] of Object.entries(buttons)) {
@@ -118,14 +131,56 @@ export function initPlayerSheet() {
     if(moreBtn.hidden) {morePanel.hidden=true;moreBtn.setAttribute('aria-expanded','false');}
     if(queueBtn.hidden) queuePanel.hidden=true;
     if(document.activeElement?.hidden) closeBtn.focus();
+    updateBottomBounds();
     reveal();
   }
-  subtitlesBtn.addEventListener('click',()=>{subtitles=!subtitles;layoutButtons();});
+  subtitlesBtn.addEventListener('click',()=>{if(getCurrentSong()?.mediaType==='video') cycleLyricMode(orientation()); else audioSubtitles=!audioSubtitles;layoutButtons();});
   moreBtn.addEventListener('click',()=>{morePanel.hidden=!morePanel.hidden;moreBtn.setAttribute('aria-expanded',String(!morePanel.hidden));reveal();});
   window.addEventListener('playerbuttonschange',layoutButtons);
   landscape.addEventListener('change',()=>{dismissMenus();layoutButtons();});
+  // Compare against the actual object-fit:contain picture, not the host box.
+  function updateBottomBounds() {
+    const body=$('#lyricsBody');
+    if (!modal.classList.contains('subtitles-bottom')) {
+      body.style.removeProperty('max-height');body.style.removeProperty('bottom');return;
+    }
+    const host=videoHost.getBoundingClientRect();
+    const scale=Math.min(host.width/audioEl.videoWidth,host.height/audioEl.videoHeight);
+    const pictureBottom=host.top+(host.height+audioEl.videoHeight*scale)/2;
+    // In portrait, start immediately below the actual picture when the
+    // natural lyrics fit before transport. Otherwise extend upward over video.
+    // Positioning only affects the overlay, never the video host.
+    if (!landscape.matches && modal.classList.contains('open')) {
+      const sheet=$('.player-sheet'), sheetRect=sheet.getBoundingClientRect();
+      const footerTop=Math.min(...[progressTrack,$('.player-sheet-time-row'),controls]
+        .map(node=>node.getBoundingClientRect()).filter(rect=>rect.height>0).map(rect=>rect.top));
+      if (Number.isFinite(footerTop)) {
+        const borderBottom=parseFloat(getComputedStyle(sheet).borderBottomWidth)||0;
+        const naturalHeight=body.scrollHeight;
+        const fitsBelowPicture=Number.isFinite(pictureBottom) && naturalHeight>0 && pictureBottom+naturalHeight<=footerTop;
+        const lyricsBottom=fitsBelowPicture ? pictureBottom+naturalHeight : footerTop;
+        body.style.bottom=Math.max(0,sheetRect.bottom-borderBottom-lyricsBottom)+'px';
+      }
+    } else body.style.removeProperty('bottom');
+    const blank=Number.isFinite(pictureBottom) ? Math.max(0,body.getBoundingClientRect().bottom-pictureBottom) : 0;
+    // Hidden full-song lines can retain a different text size on iOS.
+    // Measure text line heights from the displayed current/next nodes only.
+    const lineHeights=[...body.querySelectorAll('.lyric-line.current, .lyric-line.next')]
+      .map(node=>parseFloat(getComputedStyle(node).lineHeight))
+      .filter(height=>Number.isFinite(height) && height>0);
+    const lineHeight=lineHeights.length ? Math.max(...lineHeights) : parseFloat(getComputedStyle(body).lineHeight);
+    if (!Number.isFinite(lineHeight) || lineHeight<=0) return;
+    const twoLines=2*lineHeight;
+    // scrollHeight retains natural wrapped content even while clipped.
+    const limit=blank>=body.scrollHeight ? blank : twoLines;
+    body.style.maxHeight=limit+'px';
+  }
+  audioEl.addEventListener('loadedmetadata',updateBottomBounds);
   const observer=new ResizeObserver(layoutButtons);
   observer.observe(videoHost);observer.observe(controls);
+  const boundsObserver=new ResizeObserver(updateBottomBounds);
+  for (const node of [$('#lyricsBody'),progressTrack,$('.player-sheet-time-row')]) boundsObserver.observe(node);
+  new MutationObserver(updateBottomBounds).observe($('#lyricsBody'),{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
   document.fonts?.ready.then(layoutButtons);
   onLanguageChange(layoutButtons);
   modal.addEventListener('pointerdown',e=>{

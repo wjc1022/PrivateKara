@@ -122,6 +122,9 @@
     "queue": "Playback queue",
     "mediaFailed": "پخش رسانه ممکن نیست؛ قالب یا خواندن فایل را بررسی کنید.",
     "showSubtitles": "نمایش زیرنویس",
+    "offSubtitles": "خاموش کردن زیرنویس",
+    "bottomSubtitles": "زیرنویس پایین",
+    "sideSubtitles": "زیرنویس کناری",
     "hideSubtitles": "پنهان کردن زیرنویس",
     "video": "ویدیو",
     "more": "بیشتر"

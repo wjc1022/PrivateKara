@@ -26,7 +26,7 @@ export function initPlayerLyrics() {
 
   function center(index, instant = false) {
     const node = nodes[index];
-    if (!node) return;
+    if (!node || (modal.classList.contains('has-video') && !modal.classList.contains('subtitles-side'))) return;
     // Layout coordinates exclude transforms and smooth-scroll intermediate
     // rectangles. The body is the offset parent, including for wrapped lines.
     const top = Math.max(0, node.offsetTop + node.offsetHeight / 2 - body.clientHeight / 2);
@@ -99,6 +99,7 @@ export function initPlayerLyrics() {
     stopLoop();
     lines = []; nodes = []; lastIndex = -2; lastWord = -2;
     clearNode(body);
+    body.classList.remove('has-timed-lyrics');
     body.scrollTop = 0;
     if (!activeSong) return;
     const songId = activeSong.id;
@@ -108,6 +109,7 @@ export function initPlayerLyrics() {
       if (request !== revision || !isOpen()) return;
       const raw = typeof record?.text === 'string' ? record.text : '';
       lines = parseLrc(raw).lines;
+      body.classList.toggle('has-timed-lyrics', lines.some(line => line.time !== null && line.text.trim()));
       if (!lines.length) body.appendChild(el('p', { class: 'empty-state' }, t('lyrics.noLyrics')));
       nodes = lines.map(line => {
         const node = el('div', { class: `lyric-line${line.time === null ? ' untimed' : ''}`, dir: 'auto' });
@@ -142,5 +144,5 @@ export function initPlayerLyrics() {
     mutations.observe(body, { childList: true });
   }
   window.addEventListener?.('resize', () => sync(true));
-  return { open, close };
+  return { open, close, refresh() { body.scrollTop = 0; sync(true); } };
 }

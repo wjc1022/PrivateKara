@@ -56,24 +56,91 @@ function layout(label){
   check(Math.abs(v.width-area.width)<1,'hidden lyrics return full available width to video '+label);
   check(row.right<=v.right+1,'video-only controls fit '+label);
  }
- typography(label);return visible;
+ typography(label);check(modePrefs.getLyricMode('landscape')==='side','width never rewrites chosen side preference '+label);return visible;
 }
-for(const [width,height] of [[390,844],[568,320],[844,390],[768,1024],[820,1180],[1024,768],[1280,800]]){
+// Bottom modes use the same full-song DOM and contain video in both orientations.
+const modePrefs=await w.eval('import("/src/services/playerPreferences.js")');
+const modeButton=d.querySelector('#sheetSubtitlesBtn'),modeModal=d.querySelector('#playerSheetModal');
+const clickMode=async()=>{modeButton.click();await wait(100);};
+function modeIs(mode,label){check(modeModal.classList.contains('subtitles-'+mode),label);}
+function videoRect(){const r=engine.audioEl.getBoundingClientRect();return [r.x,r.y,r.width,r.height];}
+function equalRect(a,b,label){check(a.every((n,i)=>Math.abs(n-b[i])<.01),label);}
+// Switching from a scrolled full-song sidebar must reveal actual bottom text.
+const originalLyrics=(await db2.Lyrics.get(video.id)).text;
+await db2.Lyrics.save(video.id,Array.from({length:90},(_,i)=>'[00:'+(i*.02).toFixed(2).padStart(5,'0')+']Line '+i).join('\n'));
+engine.refreshCurrentSong(video);await until(()=>lyricBody.children.length===90,'full-song regression fixture');engine.seekTo(.75);await until(()=>!engine.audioEl.seeking,'late full-song seek');await wait(150);
+check(lyricBody.scrollTop>100,'sidebar fixture actually scrolled');
+await clickMode();
+function bottomTextVisible(label){const b=lyricBody.getBoundingClientRect(),n=lyricBody.querySelector('.current,.next'),r=n.getBoundingClientRect();check(r.bottom>b.top&&r.top<b.bottom&&r.width>0,'bottom text intersects visible region '+label+' '+JSON.stringify({body:b.toJSON(),line:r.toJSON(),scrollTop:lyricBody.scrollTop}));}
+check(lyricBody.parentElement===sheetNode,'bottom overlay is outside clipped video row');bottomTextVisible('from scrolled side');
+engine.audioEl.loop=true;engine.togglePlay();await until(()=>!engine.audioEl.paused,'bottom playback');await wait(3200);bottomTextVisible('during playback after controls hide');
+check(modeModal.classList.contains('controls-hidden'),'bottom playback hides only controls');
+check(lyricBody.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}),'bottom text remains painted while controls hidden');engine.audioEl.pause();engine.audioEl.loop=false;
+frame.style.width='390px';frame.style.height='844px';await wait(150);bottomTextVisible('portrait after scrolled side');
+frame.style.width='1000px';frame.style.height='700px';await wait(150);await clickMode();await clickMode();
+await db2.Lyrics.save(video.id,originalLyrics);engine.refreshCurrentSong(video);await until(()=>lyricBody.children.length===3,'restore initial lyrics');await wait(100);
+check(lyricBody.parentElement===visuals,'side mode restores original flex host');modeIs('side','default landscape side');check(modeButton.textContent==='Bottom subtitles','side button announces bottom');
+await clickMode();modeIs('bottom','landscape side to bottom');check(modeButton.textContent==='Turn off subtitles','bottom button announces off');
+modePrefs.setPlayerButtons({subtitles:false});modeIs('bottom','hiding button preserves bottom mode');check(modeButton.hidden,'bottom subtitle button visibility preference');modePrefs.setPlayerButtons({});
+const bottomRect=videoRect();await clickMode();modeIs('off','landscape bottom to off');equalRect(bottomRect,videoRect(),'landscape bottom/off identical video rectangle');
+check(modeButton.textContent==='Side subtitles','off button announces side');await clickMode();modeIs('side','landscape off to side');
+frame.style.width='390px';frame.style.height='844px';await wait(150);modeIs('bottom','portrait defaults bottom');
+check(modeButton.textContent==='Turn off subtitles','portrait bottom announces off');
+const portraitRect=videoRect();await clickMode();modeIs('off','portrait bottom to off');equalRect(portraitRect,videoRect(),'portrait bottom/off identical video rectangle');
+check(modeButton.textContent==='Bottom subtitles','portrait off announces bottom');await clickMode();modeIs('bottom','portrait off to bottom');
+frame.style.width='1000px';frame.style.height='600px';await wait(150);modeIs('side','rotation restores landscape side');
+await clickMode();frame.style.width='390px';frame.style.height='844px';await wait(150);modeIs('bottom','rotation preserves portrait independently');
+engine.seekTo(.88);await until(()=>!engine.audioEl.seeking,'bottom long seek');await wait(150);
+const currentBottom=lyricBody.querySelector('.current'),nextBottom=lyricBody.querySelector('.next');
+check(currentBottom===lyricBody.children[1]&&nextBottom===lyricBody.children[2],'bottom current/next after paused seek');
+check([...lyricBody.children].filter(n=>w.getComputedStyle(n).display!=='none').length===2,'bottom shows two nodes but retains full DOM');
+check(currentBottom.offsetHeight>54,'bottom long lyric wraps naturally beyond two lines');
+check(lyricBody.clientHeight>54,'portrait letterbox permits natural multi-line lyrics');
+const hostRect=d.querySelector('#videoHost').getBoundingClientRect(),scale=Math.min(hostRect.width/engine.audioEl.videoWidth,hostRect.height/engine.audioEl.videoHeight),pictureBottom=hostRect.top+(hostRect.height+engine.audioEl.videoHeight*scale)/2;
+check(lyricBody.getBoundingClientRect().top>=pictureBottom,'non-overlap uses actual contain picture bounds');
+check(Math.abs(lyricBody.getBoundingClientRect().top-pictureBottom)<1.1,'portrait subtitles immediately follow actual picture');
+check(w.getComputedStyle(lyricBody).pointerEvents==='none'&&Number(w.getComputedStyle(d.querySelector('.player-sheet-controls')).zIndex)>Number(w.getComputedStyle(lyricBody).zIndex),'controls layer above noninteractive subtitles');
+check(w.getComputedStyle(currentBottom).webkitTextSizeAdjust==='100%','bottom prevents independent iOS text inflation');
+check(w.getComputedStyle(currentBottom).lineHeight==='27px','bottom uses compact 1.5 line height without changing side typography');
+const playLayerButton=d.querySelector('#sheetPlayBtn'),playLayerRect=playLayerButton.getBoundingClientRect();lyricBody.style.pointerEvents='auto';
+check(d.elementFromPoint(playLayerRect.left+playLayerRect.width/2,playLayerRect.top+playLayerRect.height/2)?.closest('#sheetPlayBtn')===playLayerButton,'controls stay on top even if subtitle hit testing is enabled');lyricBody.style.removeProperty('pointer-events');
+check(Number(w.getComputedStyle(d.querySelector('#sheetMorePanel')).zIndex)>Number(w.getComputedStyle(playLayerButton.parentElement).zIndex),'menus remain above controls');
+check(lyricBody.scrollTop===0,'bottom never auto-centers');
+sheetNode.style.setProperty('--safe-left','40px');sheetNode.style.setProperty('--safe-right','44px');sheetNode.style.setProperty('--safe-bottom','24px');await wait(150);
+const safeLyrics=lyricBody.getBoundingClientRect();check(Math.abs(safeLyrics.left-sheetNode.getBoundingClientRect().left-41)<1&&Math.abs(sheetNode.getBoundingClientRect().right-safeLyrics.right-45)<1,'bottom respects asymmetric horizontal safe areas');
+check(safeLyrics.bottom<=d.querySelector('#sheetProgressTrack').getBoundingClientRect().top+.1,'portrait subtitles stay above safe-area-adjusted footer');
+check(safeLyrics.bottom<=d.querySelector('.player-sheet-controls').getBoundingClientRect().top,'portrait subtitles avoid transport before overlaying video');
+sheetNode.style.removeProperty('--safe-left');sheetNode.style.removeProperty('--safe-right');sheetNode.style.removeProperty('--safe-bottom');await wait(100);
+for(const [pw,ph] of [[768,1024],[820,1180]]){
+ frame.style.width=pw+'px';frame.style.height=ph+'px';await wait(150);modeIs('bottom','wide portrait still bottom '+pw);
+ const pr=videoRect();await clickMode();equalRect(pr,videoRect(),'wide portrait bottom/off identical '+pw);await clickMode();
+}
+frame.style.width='1000px';frame.style.height='390px';await wait(150);modeIs('bottom','landscape remembers bottom');
+check(lyricBody.getBoundingClientRect().height<=54.01&&w.getComputedStyle(lyricBody).overflowY==='hidden','overlap caps region at two text line heights');
+check(w.getComputedStyle(currentBottom).whiteSpace==='pre-wrap'&&w.getComputedStyle(currentBottom).overflowWrap==='anywhere'&&w.getComputedStyle(currentBottom).textOverflow!=='ellipsis','bottom keeps natural wrapping without ellipsis');
+engine.seekTo(.1);await until(()=>!engine.audioEl.seeking,'bottom enhanced seek');await wait(100);
+const bottomWords=lyricBody.querySelector('.current').querySelectorAll('.lyric-word');check(bottomWords[0].classList.contains('active')&&!bottomWords[1].classList.contains('sung'),'bottom Enhanced LRC word state');
+engine.seekTo(.98);await until(()=>!engine.audioEl.seeking,'bottom final seek');await wait(100);
+check(!lyricBody.querySelector('.next')&&Math.abs(parseFloat(w.getComputedStyle(lyricBody,'::after').height)-27)<.02,'absent next retains blank second text slot');
+d.querySelector('#playerSheetClose').click();d.querySelector('#miniExpand').click();await wait(100);modeIs('bottom','close/reopen retains bottom');
+await clickMode();await clickMode();modeIs('side','restore side for existing width regression checks');
+frame.style.width='1000px';frame.style.height='700px';await wait(150);
+for(const [width,height] of [[568,320],[844,390],[1024,768],[1280,800]]){
  frame.style.width=width+'px';frame.style.height=height+'px';await wait(150);layout(width+'x'+height);
  check(sheetNode.getBoundingClientRect().width>=d.documentElement.clientWidth-2,'player uses available viewport width '+width+'x'+height);
 }
-// Same usable container width with opposite viewport orientations; boundaries
+// Same usable container width with different viewport sizes; boundaries
 // and extra padding model constrained hosts and safe-area space independently.
 for(const contentWidth of [655,656,657,720,760,1120,1200]){
  const modes=[];
- for(const [width,height] of [[1000,1200],[1200,800]]){
+ for(const [width,height] of [[1000,700],[1200,800]]){
   frame.style.width=width+'px';frame.style.height=height+'px';
   const sheetStyle=w.getComputedStyle(sheetNode);
   sheetNode.style.width=(contentWidth+84+parseFloat(sheetStyle.borderLeftWidth)+parseFloat(sheetStyle.borderRightWidth))+'px';sheetNode.style.setProperty('--safe-left','40px');sheetNode.style.setProperty('--safe-right','44px');
   await wait(150);check(Math.abs(usableWidth()-contentWidth)<.5,'explicit usable container width '+contentWidth+' in '+width+'x'+height);
   modes.push(layout('constrained '+contentWidth+' in '+width+'x'+height));
  }
- check(modes[0]===modes[1],'same container width gives same mode in either orientation '+contentWidth);
+ check(modes[0]===modes[1],'same side mode at same container width '+contentWidth);
 }
 sheetNode.style.removeProperty('width');sheetNode.style.removeProperty('--safe-left');sheetNode.style.removeProperty('--safe-right');
 frame.style.width='1000px';frame.style.height='600px';await wait(150);
@@ -103,7 +170,7 @@ check(d.querySelector('.player-sheet-controls').scrollWidth<=d.querySelector('.p
 frame.style.width='390px';frame.style.height='320px';await wait(120);check(!more.hidden,'actual narrow container offers more');
 tap(more);check(!d.querySelector('#sheetMorePanel').hidden,'more opens access to low frequency actions');
 frame.style.width='1000px';frame.style.height='600px';await wait(120);
-tap(sub);await wait(100);check(w.getComputedStyle(d.querySelector('#lyricsBody')).display==='none'&&d.querySelector('#videoHost').getBoundingClientRect().width>vr.width,'subtitle off releases width');
+tap(sub);await wait(100);check(modal.classList.contains('subtitles-bottom'),'side cycles to bottom');tap(sub);await wait(100);check(w.getComputedStyle(d.querySelector('#lyricsBody')).display==='none'&&d.querySelector('#videoHost').getBoundingClientRect().width>vr.width,'subtitle off releases width');
 pref.setPlayerButtons({subtitles:false});check(sub.hidden&&modal.classList.contains('subtitles-off'),'hiding subtitle button preserves off state');
 pref.setPlayerButtons({});check(sub.getAttribute('aria-pressed')==='false','restoring button preserves subtitle state');
 tap(sub);await wait(100);check(w.getComputedStyle(d.querySelector('#lyricsBody')).display!=='none','subtitle on restores sidebar');
@@ -132,19 +199,39 @@ tap(d.querySelector('#sheetQueueBtn'));await wait(3150);check(!modal.classList.c
 track.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,clientX:rect.left+rect.width*.5,pointerId:1,pointerType:'touch'}));await wait(3150);check(!modal.classList.contains('controls-hidden'),'drag keeps controls visible');track.dispatchEvent(new w.PointerEvent('pointercancel',{pointerId:1}));
 track.focus();track.dispatchEvent(new w.KeyboardEvent('keydown',{bubbles:true,key:'ArrowRight'}));await wait(3150);check(!modal.classList.contains('controls-hidden'),'keyboard control focus keeps visible');
 d.querySelector('#playerSheetClose').focus();tap(d.querySelector('#videoHost'));await wait(3150);check(modal.classList.contains('controls-hidden'),'after interaction ends idle timer restarts');
-frame.style.width='390px';frame.style.height='844px';await wait(120);check(!modal.classList.contains('controls-hidden')&&w.getComputedStyle(d.querySelector('#lyricsBody')).display==='none','resize clears hidden state and hides narrow subtitles');
+frame.style.width='390px';frame.style.height='844px';await wait(120);check(!modal.classList.contains('controls-hidden')&&modal.classList.contains('subtitles-bottom'),'resize clears hidden state and restores portrait bottom preference');
 frame.style.width='568px';frame.style.height='320px';await wait(120);
 const row=d.querySelector('.player-sheet-controls'),rowRect=row.getBoundingClientRect();check([...row.children].filter(b=>!b.hidden).every(b=>{const r=b.getBoundingClientRect();return r.left>=rowRect.left-1&&r.right<=rowRect.right+1&&Math.abs(r.top-row.children[1].getBoundingClientRect().top)<2;}),'compact landscape single row does not overflow');
 frame.style.width='1280px';frame.style.height='800px';await wait(120);
 const desktopPicture=d.querySelector('#videoHost').getBoundingClientRect(),desktopRow=d.querySelector('.player-sheet-controls').getBoundingClientRect();
 check(desktopRow.right<=desktopPicture.right+2&&desktopRow.bottom<=desktopPicture.bottom,'desktop landscape overlay shares video boundary');
 const i18n=await w.eval('import("/src/services/i18nService.js")');await i18n.setLanguage('fa');await wait(150);layout('RTL wide');
-check(d.querySelector('#lyricsBody').getBoundingClientRect().left>=d.querySelector('#videoHost').getBoundingClientRect().right,'RTL retains right subtitle sidebar');await i18n.setLanguage('en');
+check(d.querySelector('#lyricsBody').getBoundingClientRect().left>=d.querySelector('#videoHost').getBoundingClientRect().right,'RTL retains right subtitle sidebar');
+tap(sub);await wait(100);check(w.getComputedStyle(lyricBody).direction==='rtl'&&w.getComputedStyle(lyricBody).position==='absolute','RTL bottom uses shared overlay');
+check(sub.textContent===i18n.t('player.offSubtitles'),'Persian bottom next action localized');tap(sub);await wait(100);check(sub.textContent===i18n.t('player.sideSubtitles'),'Persian off next action localized');tap(sub);
+await i18n.setLanguage('zh-CN');tap(sub);await wait(100);check(sub.textContent===i18n.t('player.offSubtitles'),'Chinese bottom next action localized');tap(sub);await wait(100);check(sub.textContent===i18n.t('player.sideSubtitles'),'Chinese off next action localized');tap(sub);await i18n.setLanguage('en');
 tap(d.querySelector('#playerSheetClose'));await wait(3150);check(!modal.classList.contains('controls-hidden')&&!modal.classList.contains('landscape-video'),'close clears timer and landscape state');
 d.querySelector('#miniExpand').click();check(!d.querySelector('.player-sheet-controls').inert,'reopen restores control interaction');
 engine.audioEl.loop=false;engine.audioEl.pause();
 frame.style.width='1000px';frame.style.height='600px';await wait(100);
+// A real tall encoded fixture ensures contain overlap is media-dependent.
+const tallCanvas=d.createElement('canvas');tallCanvas.width=180;tallCanvas.height=320;
+tallCanvas.getContext('2d').fillRect(0,0,180,320);const tallStream=tallCanvas.captureStream(10),tallChunks=[];
+const tallRecorder=new w.MediaRecorder(tallStream,{mimeType:'video/webm;codecs=vp8'});tallRecorder.ondataavailable=e=>tallChunks.push(e.data);
+const tallStopped=new Promise(r=>tallRecorder.onstop=r);tallRecorder.start();await wait(350);tallRecorder.stop();await tallStopped;tallStream.getTracks().forEach(t=>t.stop());
+const tallImporter=await w.eval('import("/src/services/importService.js")');
+const tallSongs=await tallImporter.importFiles([new w.File(tallChunks,'tall.webm',{type:'video/webm'}),new w.File(['[00:00]Tall current\n[00:10]Next valid lyric'],'tall.lrc')]);
+await engine.selectSong(tallSongs[0],[tallSongs[0]]);engine.audioEl.pause();await until(()=>lyricBody.querySelector('.current')?.textContent==='Tall current','tall lyrics');
+frame.style.width='390px';frame.style.height='844px';await wait(150);modeIs('bottom','track switch preserves portrait bottom');
+check(engine.audioEl.videoWidth===180&&engine.audioEl.videoHeight===320,'actual tall video metadata');
+const tallHost=d.querySelector('#videoHost').getBoundingClientRect(),tallScale=Math.min(tallHost.width/180,tallHost.height/320),tallPictureBottom=tallHost.top+(tallHost.height+320*tallScale)/2;
+check(tallPictureBottom>lyricBody.getBoundingClientRect().top&&lyricBody.getBoundingClientRect().height<=54.01,'tall portrait overlays video when below-picture space before footer is insufficient');
+check(lyricBody.getBoundingClientRect().bottom<=d.querySelector('#sheetProgressTrack').getBoundingClientRect().top+.1,'tall portrait keeps subtitles above transport');
+const tallBottom=videoRect();await clickMode();equalRect(tallBottom,videoRect(),'tall media bottom/off identical video geometry');await clickMode();
+frame.style.width='1000px';frame.style.height='600px';await wait(100);tap(sub);await wait(100);modeIs('bottom','select bottom for empty lyric regression');check(lyricBody.getBoundingClientRect().height<=54.01,'tall landscape overlap caps at compact two-line height');
 const bare=songs.find(s=>s.title==='local-video');await engine.selectSong(bare,songs);await until(()=>!d.querySelector('.lyric-line'),'no lyrics');check(w.getComputedStyle(d.querySelector('#lyricsBody')).display==='none','no lyrics gives video available width');
+modeIs('bottom','no lyrics preserves chosen mode');check(!lyricBody.querySelector('.current')&&!lyricBody.querySelector('.next')&&lyricBody.textContent.includes(i18n.t('lyrics.noLyrics')),'no lyrics retains existing feedback DOM without stale overlay');
+const emptyBottom=videoRect();tap(sub);await wait(100);equalRect(emptyBottom,videoRect(),'missing lyrics bottom/off geometry unchanged');tap(sub);await wait(100);
 // The same engine plays audio through the same element.
 const bytes=new ArrayBuffer(16044),v=new DataView(bytes);const str=(o,t)=>[...t].forEach((c,i)=>v.setUint8(o+i,c.charCodeAt(0)));str(0,'RIFF');v.setUint32(4,16036,true);str(8,'WAVE');str(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,8000,true);v.setUint32(28,16000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);str(36,'data');v.setUint32(40,16000,true);
 const audio={id:'audio-fixture',title:'Audio',audioBlob:new w.Blob([bytes],{type:'audio/wav'})};await db2.Songs.add(audio);
@@ -152,9 +239,14 @@ const element=engine.audioEl;await engine.selectSong(audio,[audio,bare]);check(e
 d.querySelector('#playerSheetClose').click();await until(()=>engine.getCurrentSong().id===bare.id,'auto advance');check(!d.querySelector('#playerSheetModal').classList.contains('open'),'actual ended event advances mixed queue without expanding');
 check(d.querySelector('#sheetVariantBtn').hidden,'video has no variant UI');
 const transfer=await w.eval('import("/src/services/transferService.js")');let backup;const create=w.URL.createObjectURL.bind(w.URL);w.URL.createObjectURL=b=>{if(b.type==='application/json')backup=b;return create(b);};await transfer.exportLibrary();await transfer.importLibrary(backup);check((await db2.Songs.withMedia(bare.id)).mediaType==='video'&&(await db2.Songs.withMedia(bare.id)).audioBlob.size===file.size,'JSON video backup restores type and bytes');
-engine.audioEl.pause();pref.setPlayerButtons({favorite:false,fullscreen:false});
+engine.audioEl.pause();pref.setPlayerButtons({favorite:false,fullscreen:false});pref.cycleLyricMode('landscape');pref.cycleLyricMode('portrait');
 frame.src='../index.html?buttons-reload';await new Promise(r=>frame.onload=r);await until(()=>frame.contentDocument.querySelector('#page-home .page-head'),'button reload');
-const restored=await frame.contentWindow.eval('import("/src/services/playerPreferences.js")');check(!restored.getPlayerButtons().favorite&&!('fullscreen' in restored.getPlayerButtons())&&restored.buttonKeys.filter(k=>k!=='favorite').every(k=>restored.getPlayerButtons()[k]),'legacy fullscreen preference ignored while other preferences survive reload');
-restored.setPlayerButtons({});const text='PASS '+checks.length+' video browser checks\n'+checks.join('\n');document.querySelector('#result').textContent=text;await fetch('/__result',{method:'POST',body:text});
+const restored=await frame.contentWindow.eval('import("/src/services/playerPreferences.js")');check(restored.getLyricMode('portrait')==='off'&&restored.getLyricMode('landscape')==='bottom','both orientation preferences survive actual page reload');check(!restored.getPlayerButtons().favorite&&!('fullscreen' in restored.getPlayerButtons())&&restored.buttonKeys.filter(k=>k!=='favorite').every(k=>restored.getPlayerButtons()[k]),'legacy fullscreen preference ignored while other preferences survive reload');
+restored.setPlayerButtons({});
+const restartWindow=frame.contentWindow,restartDoc=restartWindow.document,restartEngine=await restartWindow.eval('import("/src/services/audioEngine.js")'),restartDb=await restartWindow.eval('import("/src/database/db.js")');restartEngine.audioEl.muted=true;
+await restartEngine.selectSong(await restartDb.Songs.withMedia(bare.id),[await restartDb.Songs.withMedia(bare.id)]);restartEngine.audioEl.pause();
+check(restartDoc.querySelector('#playerSheetModal').classList.contains('subtitles-bottom'),'reloaded landscape player applies saved bottom');frame.style.width='390px';frame.style.height='844px';await wait(150);
+check(restartDoc.querySelector('#playerSheetModal').classList.contains('subtitles-off')&&restartDoc.querySelector('#sheetSubtitlesBtn').textContent==='Bottom subtitles','reloaded portrait player applies saved off and next label');
+const text='PASS '+checks.length+' video browser checks\n'+checks.join('\n');document.querySelector('#result').textContent=text;await fetch('/__result',{method:'POST',body:text});
 }catch(e){const text='FAIL '+e.stack+'\n'+checks.join('\n');document.querySelector('#result').textContent=text;await fetch('/__result',{method:'POST',body:text});}
 </script>
