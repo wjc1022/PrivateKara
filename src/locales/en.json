@@ -15,8 +15,9 @@
   "home": {
     "title": "Home",
     "subtitle": "Your music, glowing in one place.",
-    "continueListening": "Continue listening",
-    "yourFavorites": "Favorites",
+    "recentlyPlayed": "Recently played",
+    "noRecentsTitle": "No recently played songs",
+    "noRecentsBody": "Play a song from Library to see it here.",
     "emptyTitle": "No music found",
     "emptyBody": "Import your own songs to start building your library. Everything stays on this device.",
     "importFirst": "Import your first song",
