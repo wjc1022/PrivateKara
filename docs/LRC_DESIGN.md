@@ -52,7 +52,7 @@ JSON 对伴奏 Blob 的序列化问题独立存在，本轮仅调整歌词结构
 命令及整体验收见 AGENTS.md 和 [DEVELOPMENT_HISTORY.md](history/DEVELOPMENT_HISTORY.md)。旧 lyrics-modal 测试随新结构更新，不以维持已删除 DOM 为目标。
 
 ## Video lyrics (2026-10-27)
-Video records use the same songId/raw-text lyrics contract. Portrait hides the entire lyrics region without changing stored text; landscape shows a separate sidebar, hidden when lyrics are absent. Audio retains its existing display. audioEl.currentTime remains the only clock. Request container fullscreen first, otherwise use explicitly labelled page fill. Native iPhone video fullscreen does not carry custom HTML sidebars. See [DEVELOPMENT_HISTORY.md](history/DEVELOPMENT_HISTORY.md) for verification limits.
+Video records use the same songId/raw-text lyrics contract. The usable content width determines whether lyrics have a separate sidebar or are hidden, without changing stored text. Missing lyrics release the sidebar. Audio retains its existing display. audioEl.currentTime remains the only clock. Expanded video covers the catalog without a fullscreen button or forced rotation. Video lyrics follow the 656 CSS px usable-content-width rule in [PLAYER_LAYOUT.md](PLAYER_LAYOUT.md). See [DEVELOPMENT_HISTORY.md](history/DEVELOPMENT_HISTORY.md) for verification limits.
 
 ## 横屏视频控制与按钮偏好（2026-10-27）
 - 横屏有字幕时按约 75:25 分配视频与字幕的净宽度；共享 `--lyrics-fraction`、间距及安全区域变量计算字幕、控件和渐变遮罩边界。RTL 界面仍将字幕放在视频右侧。

@@ -28,40 +28,6 @@ export function initPlayerSheet() {
   const modal = $("#playerSheetModal");
   const videoHost = $("#videoHost");
   videoHost.appendChild(audioEl);
-  const fullscreenBtn = $("#sheetFullscreenBtn");
-  let expanded=false, nativeEntered=false, fullscreenRevision=0;
-  function setPageFill(enabled) {
-    expanded=enabled;modal.classList.toggle('page-fill',enabled);
-    fullscreenBtn.dataset.i18n=enabled?'player.exitFullscreen':'player.fullscreen';
-    fullscreenBtn.textContent=t(fullscreenBtn.dataset.i18n);
-    fullscreenBtn.setAttribute('aria-pressed',String(enabled));
-  }
-  function fitLandscape() {
-    modal.classList.toggle('rotated-video',expanded && innerHeight>innerWidth);
-    layoutButtons();
-  }
-  function unlock() {try {screen.orientation?.unlock();} catch {}}
-  function leaveExpanded() {
-    ++fullscreenRevision;nativeEntered=false;unlock();setPageFill(false);fitLandscape();
-    if(document.fullscreenElement===modal) void document.exitFullscreen().catch(()=>{});
-  }
-  fullscreenBtn.addEventListener('click',async()=>{
-    if(expanded) {leaveExpanded();return;}
-    const revision=++fullscreenRevision;setPageFill(true);fitLandscape();
-    try {
-      await modal.requestFullscreen();
-      if(revision!==fullscreenRevision) {
-        if(document.fullscreenElement===modal) await document.exitFullscreen();
-        return;
-      }
-      nativeEntered=true;
-    } catch { /* Preserve custom controls with page fill. */ }
-    if(revision!==fullscreenRevision) return;
-    try {await screen.orientation.lock('landscape');} catch { /* CSS rotation fallback */ }
-    if(revision!==fullscreenRevision) {unlock();return;}
-    fitLandscape();
-  });
-  window.addEventListener('resize',fitLandscape);
   const backdrop = $("#playerSheetBackdrop");
   const closeBtn = $("#playerSheetClose");
   const titleEl = $("#sheetTitle");
@@ -109,7 +75,7 @@ export function initPlayerSheet() {
   const moreBtn = el('button',{class:'sheet-pill-btn',id:'sheetMoreBtn','data-i18n':'player.more','aria-expanded':'false','aria-controls':'sheetMorePanel'},t('player.more'));
   const morePanel = el('div',{class:'sheet-more-panel',id:'sheetMorePanel',hidden:true});
   controls.append(moreBtn);secondary.after(morePanel);
-  const buttons={shuffle:shuffleBtn,repeat:repeatBtn,favorite:favBtn,queue:queueBtn,variant:variantBtn,subtitles:subtitlesBtn,fullscreen:fullscreenBtn};
+  const buttons={shuffle:shuffleBtn,repeat:repeatBtn,favorite:favBtn,queue:queueBtn,variant:variantBtn,subtitles:subtitlesBtn};
   let subtitles=true, hideTimer, keyboardFocus=false;
   function isLandscapeVideo() { return modal.classList.contains('open') && getCurrentSong()?.mediaType==='video'; }
   function reveal() {
@@ -130,9 +96,9 @@ export function initPlayerSheet() {
     subtitlesBtn.setAttribute('aria-pressed',String(subtitles));
     subtitlesBtn.dataset.i18n=subtitles?'player.hideSubtitles':'player.showSubtitles';
     subtitlesBtn.textContent=t(subtitlesBtn.dataset.i18n);
-    const order=[shuffleBtn,prevBtn,playBtn,nextBtn,repeatBtn,favBtn,fullscreenBtn,variantBtn,queueBtn,subtitlesBtn];
+    const order=[shuffleBtn,prevBtn,playBtn,nextBtn,repeatBtn,favBtn,variantBtn,queueBtn,subtitlesBtn];
     for(const [key,button] of Object.entries(buttons)) {
-      button.hidden=!prefs[key] || (key==='variant' && video) || (key==='fullscreen' && !video);
+      button.hidden=!prefs[key] || (key==='variant' && video);
     }
     moreBtn.hidden=true;
     for(const button of order) (wide || [shuffleBtn,prevBtn,playBtn,nextBtn,repeatBtn].includes(button)?controls:secondary).append(button);
@@ -161,7 +127,7 @@ export function initPlayerSheet() {
   const observer=new ResizeObserver(layoutButtons);
   observer.observe(videoHost);observer.observe(controls);
   document.fonts?.ready.then(layoutButtons);
-  onLanguageChange(()=>{setPageFill(expanded);layoutButtons();});
+  onLanguageChange(layoutButtons);
   modal.addEventListener('pointerdown',e=>{
     keyboardFocus=false;
     if(!e.target.closest('#sheetMorePanel,#sheetMoreBtn,.sheet-panel,#sheetQueueBtn')) dismissMenus();
@@ -174,11 +140,6 @@ export function initPlayerSheet() {
   modal.addEventListener('focusin',e=>{if(e.target.closest(focusSelector)) reveal();});
   modal.addEventListener('focusout',()=>queueMicrotask(()=>{keyboardFocus=keyboardFocus && !!document.activeElement?.closest(focusSelector);reveal();}));
   for(const event of ['play','pause','ended']) audioEl.addEventListener(event,reveal);
-  document.addEventListener('fullscreenchange',()=>{
-    if(nativeEntered && document.fullscreenElement!==modal) leaveExpanded();else fitLandscape();
-    reveal();
-  });
-
 
   function open() {
     if (!getCurrentSong()) return;
@@ -191,7 +152,6 @@ export function initPlayerSheet() {
     lyrics.open(getCurrentSong());
     updateProgressUI(audioEl.currentTime, audioEl.duration);
     closeBtn.focus();
-    fitLandscape();
     layoutButtons();
   }
 
@@ -199,7 +159,6 @@ export function initPlayerSheet() {
     endDrag({pointerId:dragPointerId});
     dismissMenus();keyboardFocus=false;clearTimeout(hideTimer);
     modal.classList.remove('controls-hidden');
-    leaveExpanded();
     lyrics.close();
     modal.classList.remove("open");
     modal.setAttribute("aria-hidden", "true");
@@ -211,10 +170,8 @@ export function initPlayerSheet() {
   function renderSong(song) {
     if (!song) return;
     const video = song.mediaType === "video";
-    if (!video && expanded) leaveExpanded();
     modal.classList.toggle("has-video", video);
     videoHost.hidden = !video;
-    fullscreenBtn.hidden = !video;
     titleEl.textContent = song.title;
     artistEl.textContent = song.artist;
     favBtn.classList.toggle("active", !!song.favorite);
@@ -288,7 +245,7 @@ export function initPlayerSheet() {
     endDrag({pointerId:dragPointerId});
     dismissMenus();keyboardFocus=false;
     renderSong(song);
-    fitLandscape();reveal();
+    reveal();
     updateProgressUI(audioEl.currentTime, audioEl.duration || song?.duration || 0);
     if (!queuePanel.hidden) renderQueuePanel();
   });
@@ -312,7 +269,7 @@ export function initPlayerSheet() {
   // ---- seek (pointer drag, same pattern as the mini player) ----
   function ratioFromEvent(e) {
     const rect = progressTrack.getBoundingClientRect();
-    return Math.min(1, Math.max(0, modal.classList.contains('rotated-video') ? (e.clientY-rect.top)/rect.height : (e.clientX-rect.left)/rect.width));
+    return Math.min(1, Math.max(0, (e.clientX-rect.left)/rect.width));
   }
   progressTrack.addEventListener("pointerdown", (e) => {
     isDragging = true;
