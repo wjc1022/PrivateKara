@@ -71,7 +71,7 @@ export async function renderLibrary(container, { onImportRequested, onSongRemove
   countRow.appendChild(sortControl.element);
   container.appendChild(countRow);
 
-  const listWrap = el("div", { class: "song-list" });
+  const listWrap = el("div", { class: "song-list library-song-list" });
   container.appendChild(listWrap);
 
   function draw() {

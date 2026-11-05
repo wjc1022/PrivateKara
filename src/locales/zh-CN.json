@@ -15,8 +15,7 @@
   "home": {
     "title": "首页",
     "subtitle": "你的音乐，汇聚于此。",
-    "continueListening": "继续收听",
-    "yourFavorites": "收藏",
+    "recentlyPlayed": "最近播放",
     "emptyTitle": "暂无音乐",
     "emptyBody": "导入歌曲，开始建立音乐库。所有内容均保存在本机。",
     "importFirst": "导入第一首歌曲",

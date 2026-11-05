@@ -3,8 +3,7 @@
  * ---------------------------------------------------------------
  * First thing users see. If the library is empty, shows the
  * "No music found" empty state with an import CTA. Otherwise shows
- * a small "continue listening" shelf, a favorites shortcut, and the
- * full library below.
+ * a recently played shelf, falling back to the library without history.
  * ---------------------------------------------------------------
  */
 
@@ -52,7 +51,7 @@ export async function renderHome(container, { onImportRequested }) {
   ]);
   container.appendChild(head);
 
-  // ---- continue listening ----
+  // ---- recently played ----
   const recents = await Recents.all();
   const recentSongs = recents
     .map((r) => allSongs.find((s) => s.id === r.id))
@@ -60,29 +59,17 @@ export async function renderHome(container, { onImportRequested }) {
     .slice(0, 5);
 
   if (recentSongs.length) {
-    container.appendChild(el("h2", { class: "section-label" }, t("home.continueListening")));
+    container.appendChild(el("h2", { class: "section-label" }, t("home.recentlyPlayed")));
     const list = el("div", { class: "song-list" });
     recentSongs.forEach((song) => list.appendChild(buildRow(song, allSongs)));
     container.appendChild(list);
-  }
-
-  // ---- favorites shortcut ----
-  const favSongs = allSongs.filter((s) => s.favorite).slice(0, 5);
-  if (favSongs.length) {
-    container.appendChild(el("h2", { class: "section-label" }, t("home.yourFavorites")));
+  } else {
+    container.appendChild(el("h2", { class: "section-label" }, t("library.title")));
+    const librarySongs = allSongs.slice().sort((a, b) => b.dateAdded - a.dateAdded);
     const list = el("div", { class: "song-list" });
-    favSongs.forEach((song) => list.appendChild(buildRow(song, allSongs)));
+    librarySongs.forEach((song) => list.appendChild(buildRow(song, allSongs)));
     container.appendChild(list);
   }
-
-  // ---- everything ----
-  container.appendChild(el("h2", { class: "section-label" }, t("library.title")));
-  const fullList = el("div", { class: "song-list" });
-  allSongs
-    .slice()
-    .sort((a, b) => b.dateAdded - a.dateAdded)
-    .forEach((song) => fullList.appendChild(buildRow(song, allSongs)));
-  container.appendChild(fullList);
 
   function refreshPlayingHighlight() {
     const current = getCurrentSong();
