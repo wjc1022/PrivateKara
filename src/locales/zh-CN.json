@@ -122,6 +122,9 @@
     "queue": "播放队列",
     "mediaFailed": "音频加载失败",
     "showSubtitles": "显示字幕",
+    "offSubtitles": "关闭字幕",
+    "bottomSubtitles": "底部字幕",
+    "sideSubtitles": "右侧字幕",
     "hideSubtitles": "隐藏字幕",
     "video": "视频",
     "more": "更多"

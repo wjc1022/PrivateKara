@@ -1,30 +1,48 @@
-# Width-based player layout and validation
+# Video subtitle layout and validation
 
 English | [Chinese](PLAYER_LAYOUT.zh-CN.md)
 
-Refs #7 / Draft PR #8. The user's revision supersedes the original Issue allowance for narrow lyric overlays. Video has exactly two layout modes: separate horizontal regions or hidden lyrics. Device type, UA, physical resolution and viewport orientation do not choose the mode.
+Issue #17 extends the side-only layout with bottom subtitles. The legacy `landscape-video` class still selects immersive controls for every expanded video; actual viewport orientation selects the subtitle preference using `matchMedia('(orientation: landscape)')`.
 
-## Single video threshold
+## Modes and persistence
 
-The named CSS container is the .player-sheet content box. At **656 CSS px or more** show the dedicated physical-right lyric region; below that width hide it entirely and return all available space to video. Content width excludes padding, safe-area space and borders, so this is not a viewport breakpoint.
+Landscape cycles **side → bottom → off → side**, defaulting to side. Portrait cycles **bottom → off → bottom**, defaulting to bottom. The subtitle button names the next action in English, Simplified Chinese and Persian. `lumen.lyricModes` in localStorage stores the two choices separately, independently of `lumen.playerButtons`, media IndexedDB and audio subtitle visibility. Choices survive song changes, player close/reopen and app reload. A narrow side selection remains side, even while its lyrics are hidden by the width rule.
 
-The **656 CSS px threshold stays fixed**, independently of lyric sizing. With lyrics present and subtitles enabled, lyrics take clamp(180px, 25cqw, 280px) first, and video takes the remaining width after the 16px gap. Below the threshold, or with missing/disabled lyrics, video takes the full available width. Shared safe-area variables constrain visuals and controls together. Lyrics remain in normal horizontal flex flow and on the physical right in RTL UI. Video keeps object-fit: contain. Progress, transport, menus and the bottom gradient stop at the video boundary. Disabled or empty lyrics also release their space.
+## Side mode
 
-All lyric lines use 18px, weight 600, line-height 1.85 and no transform. Current/next/past line states change color only; Enhanced LRC word colors and active-word marking remain. Text wraps naturally. There are no font-size changes by width, line state or fullscreen.
+The named CSS container is the `.player-sheet` content box. At **656 CSS px or more**, side mode shows the dedicated physical-right lyric region; below that width it hides the region and returns its space to video. Content width excludes padding, safe-area space and borders. The sidebar remains `clamp(180px, 25cqw, 280px)` with a 16px gap. It stays in normal flex flow, including in RTL. Controls and their gradient share the video/sidebar boundary. Missing lyrics release sidebar space.
 
-## Immersive playback boundary
+Side and audio modes retain the entire lyric list, scrolling and current-line auto-centering. Audio lyric presentation is unchanged.
 
-Issue #13 removes the fullscreen button and its native fullscreen requests, orientation lock, page-fill state and CSS rotation fallback. Expanded video still covers the catalog. The legacy landscape-video class selects immersive controls for every expanded video, not orientation. Responsive portrait/landscape layout, the 656px content threshold and control auto-hide/reveal remain. The app does not control system or AirPlay receiver orientation.
+## Bottom mode
+
+Both orientations use one absolutely positioned overlay anchored to the player container, 90px plus the bottom safe area above its bottom edge, leaving clearance for transport/time/seek controls. Horizontal safe-area variables are shared with the controls; the overlay ignores pointer events, and menus remain above it. This clearance remains when controls auto-hide, so lyrics do not jump. The overlay can occupy blank space or cover video. It never participates in video flex sizing: **bottom and off have identical video geometry**, with `object-fit: contain` throughout.
+
+The entire lyric DOM and existing `findActiveLine`, next timed nonblank line and Enhanced LRC word-state logic are retained. CSS displays only current/next nodes, with a blank text-line slot for an absent current or next line. Timed blank interlude markers keep their timing and the next valid preview. Bottom mode resets scrolling and never auto-centers. Missing or untimed-only lyrics produce no bottom overlay; the existing lyric content/no-lyrics feedback DOM is preserved.
+
+For the space rule, the player computes the actual centered contain-picture bounds using the host rectangle and intrinsic video dimensions. If the naturally wrapped subtitle content fits wholly below the picture, it may use that blank space. Otherwise its visible height is capped at two text line heights and overflow is clipped. Metadata loading, host/body resizing, orientation changes, font loading and lyric DOM/state changes trigger recalculation. There is no text-length algorithm.
+
+All lyric modes share **18px / weight 600 / line-height 1.85**, current/next/past colors, Enhanced LRC word colors, `white-space: pre-wrap` and `overflow-wrap: anywhere`. Bottom layout removes line padding to make the two-line cap correspond to text line heights. Long current lines may consume the region and clip the preview. No font shrinking or ellipsis is used.
 
 ## Automated coverage
 
-Video browser tests inspect computed styles and bounding boxes at 390x844, 568x320, 844x390, 768x1024, 820x1180, 1024x768 and 1280x800. Opposite viewport orientations also use identical constrained content widths of 655/656/657/720/760/1120/1200px with asymmetric 40/44px safe-area variables. Checks cover identical modes at identical widths, the boundary, exact clamped lyric widths and remaining video widths, no overlap or stacking, RTL physical-right placement, control boundaries, fixed typography, natural wrapping, word colors, pointer seeking, immersive controls and legacy button preferences. Base checks cover fixed audio-lyric typography in light/dark themes and updated offline shell caching. Node coverage retains LRC/Enhanced LRC synchronization regressions.
+Run from the repository root:
 
-Desktop checks do not establish iOS Safari, installed-PWA, audible-output or AirPlay compatibility.
+```powershell
+node --test tests/lrc.test.mjs
+$testFiles = (Get-ChildItem tests/*.test.mjs).FullName
+node --experimental-vm-modules --test $testFiles
+node tests/browser-runner.mjs
+node tests/browser-runner.mjs --video
+```
 
-## Pending real-device acceptance - NOT VERIFIED
+Node checks cover preference cycles, independent persisted choices, malformed preferences, lyric playback/pause/seek/track changes, stale async results, interludes, absent next lines and Enhanced LRC. Bottom checks verify that centering stays disabled while side/audio retain it.
 
-- iPad Safari and installed PWA: portrait/landscape, Split View and resizing around 656px while playing/paused. Confirm separate right lyrics when sufficient, hidden lyrics otherwise, and undistorted video.
-- iPhone Safari: narrow portrait hides lyrics; landscape follows usable width. Check safe areas, subtitles, More/queue, touch seeking and readable fixed 18px multilingual lyrics.
-- Repeated player expansion/collapse and device rotation: inspect catalog coverage, layout, typography and control hide/reveal.
-- Actual AirPlay SCREEN MIRRORING: portrait/landscape entry, exit and repeat; observe the physical external display orientation, lyrics and audible output. Desktop results cannot replace these checks. Use HTTPS for full PWA acceptance; HTTP LAN is suitable for basic visual testing only.
+The isolated, muted desktop Chromium suite uses actual locally recorded wide/tall videos and page reloads. It checks mode cycles and next labels, orientation restoration, bottom/off rectangles, contain overlap/non-overlap, wrapping/clipping, RTL and localized labels, simulated asymmetric horizontal and bottom safe areas, controls/More and visibility preferences. Side-mode regressions retain explicit 655/656/657 CSS px content widths and clamped widths. The base browser suite retains audio, instrumental, lyrics, import/backup and offline shell checks. No new runtime module or cache namespace is needed; modified runtime files are already in the network-first app shell.
+
+## Pending real-device acceptance — NOT VERIFIED
+
+- iPhone Safari and installed PWA over HTTPS: both mode cycles, rotation-specific choices, repeated expansion/collapse, restart persistence, touch seeking, safe areas, wrapping, lyric timing and control/menu access.
+- iPad Safari/PWA: portrait/landscape, Split View and resizing around 656px while playing/paused; confirm side selection is retained while hidden below the threshold.
+- Actual AirPlay **screen mirroring**: entry/exit/repeat in both orientations, physical receiver output, readable bottom/side subtitles, audible output and sustained synchronization.
+- Real device safe areas and installed-PWA lifecycle remain manual pending. Simulated desktop safe-area values and advancing playback do not establish iPhone or AirPlay reliability. No native fullscreen, remote control or independent TV display is introduced.

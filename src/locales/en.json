@@ -122,6 +122,9 @@
     "queue": "Playback queue",
     "mediaFailed": "Cannot play this media: unsupported encoding or unreadable file.",
     "showSubtitles": "Show subtitles",
+    "offSubtitles": "Turn off subtitles",
+    "bottomSubtitles": "Bottom subtitles",
+    "sideSubtitles": "Side subtitles",
     "hideSubtitles": "Hide subtitles",
     "video": "Video",
     "more": "More"

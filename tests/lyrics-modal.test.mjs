@@ -179,3 +179,27 @@ test('same-line seek recenters from layout even if animated rectangles are displ
  h.audio.currentTime=5;h.audio.dispatch('seeked');assert.equal(body.scrollTop,560);
  body.scrollTop=123;h.audio.currentTime=6;h.audio.dispatch('seeked');assert.equal(body.scrollTop,560);
 });
+
+test('bottom synchronization retains full DOM, current/next and word states without centering',async()=>{
+ const h=await setup(async id=>({text:id==='empty'?'':id==='plain'?'plain lyrics':'[00:01]<00:01>one <00:02>two\n[00:03]\n[00:04]   \n[00:06]next\n[00:09]last\nuntimed'}));
+ const modal=h.elements.playerSheetModal,body=h.elements.lyricsBody;
+ modal.classList.add('has-video','subtitles-bottom');
+ h.modal.open({id:'timed'});await flush();assert.equal(h.lines().length,6);
+ const at=(time,event='seeked')=>{h.audio.currentTime=time;h.audio.dispatch(event);};
+ const state=()=>h.lines().map(n=>['current','next'].filter(c=>n.classList.contains(c)).join(','));
+ assert.equal(state()[0],'next');
+ h.lines()[0].offsetTop=900;h.lines()[3].offsetTop=1300;
+ at(1.5);assert.equal(state()[0],'current');assert.equal(state()[3],'next');assert.equal(body.scrollTop,0);
+ h.audio.paused=true;at(2.5,'pause');assert.equal(h.lines()[0].querySelectorAll('.lyric-word')[1].classList.contains('active'),true);
+ at(3.5);assert.equal(state()[1],'current');assert.equal(state()[3],'next');
+ at(4.5);assert.equal(state()[2],'current');assert.equal(state()[3],'next');
+ at(10);assert.equal(state()[4],'current');assert.ok(h.lines().every(n=>!n.classList.contains('next')));
+ at(1.5);assert.equal(h.lines()[0].querySelectorAll('.lyric-word')[1].classList.contains('sung'),false);
+ h.audio.paused=false;h.emit('playstate',true);h.audio.currentTime=6.5;
+ [...h.frames.values()][0]();assert.equal(state()[3],'current');assert.equal(state()[4],'next');assert.equal(body.scrollTop,0);
+ modal.classList.remove('subtitles-bottom');modal.classList.add('subtitles-side');h.modal.refresh();assert.ok(body.scrollTop>0);
+ modal.classList.remove('subtitles-side');modal.classList.add('subtitles-bottom');h.modal.refresh();assert.equal(body.scrollTop,0);
+ h.emit('trackchange',{id:'empty'});await flush();assert.equal(h.lines().length,0);assert.equal(body.textContent,'lyrics.noLyrics');assert.equal(body.classList.contains('has-timed-lyrics'),false);
+ h.emit('trackchange',{id:'plain'});await flush();assert.equal(h.lines().length,1);assert.ok(h.lines().every(n=>!n.classList.contains('current')&&!n.classList.contains('next')));
+ h.emit('trackchange',{id:'timed'});await flush();assert.equal(h.lines().length,6);assert.equal(h.lines()[3].classList.contains('current'),true);
+});
