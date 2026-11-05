@@ -97,6 +97,12 @@ export function initPlayerSheet() {
     modal.classList.toggle('subtitles-off',mode==='off');
     modal.classList.toggle('subtitles-bottom',video && mode==='bottom');
     modal.classList.toggle('subtitles-side',video && mode==='side');
+    // The bottom overlay belongs to the sheet, outside the clipped video row.
+    // Move the existing full-song DOM; side/audio keep their original flex host.
+    const lyricBody=$('#lyricsBody'), visuals=$('.player-visuals');
+    if (video && mode==='bottom') {
+      if (lyricBody.parentElement!==visuals.parentElement) visuals.after(lyricBody);
+    } else if (lyricBody.parentElement!==visuals) visuals.append(lyricBody);
     if (mode !== lastMode) { lastMode=mode; lyrics.refresh(); }
     updateBottomBounds();
     $('#shuffleBtn').hidden=!prefs.shuffle;

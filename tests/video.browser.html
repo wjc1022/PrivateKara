@@ -65,7 +65,21 @@ const clickMode=async()=>{modeButton.click();await wait(100);};
 function modeIs(mode,label){check(modeModal.classList.contains('subtitles-'+mode),label);}
 function videoRect(){const r=engine.audioEl.getBoundingClientRect();return [r.x,r.y,r.width,r.height];}
 function equalRect(a,b,label){check(a.every((n,i)=>Math.abs(n-b[i])<.01),label);}
-modeIs('side','default landscape side');check(modeButton.textContent==='Bottom subtitles','side button announces bottom');
+// Switching from a scrolled full-song sidebar must reveal actual bottom text.
+const originalLyrics=(await db2.Lyrics.get(video.id)).text;
+await db2.Lyrics.save(video.id,Array.from({length:90},(_,i)=>'[00:'+(i*.02).toFixed(2).padStart(5,'0')+']Line '+i).join('\n'));
+engine.refreshCurrentSong(video);await until(()=>lyricBody.children.length===90,'full-song regression fixture');engine.seekTo(.75);await until(()=>!engine.audioEl.seeking,'late full-song seek');await wait(150);
+check(lyricBody.scrollTop>100,'sidebar fixture actually scrolled');
+await clickMode();
+function bottomTextVisible(label){const b=lyricBody.getBoundingClientRect(),n=lyricBody.querySelector('.current,.next'),r=n.getBoundingClientRect();check(r.bottom>b.top&&r.top<b.bottom&&r.width>0,'bottom text intersects visible region '+label+' '+JSON.stringify({body:b.toJSON(),line:r.toJSON(),scrollTop:lyricBody.scrollTop}));}
+check(lyricBody.parentElement===sheetNode,'bottom overlay is outside clipped video row');bottomTextVisible('from scrolled side');
+engine.audioEl.loop=true;engine.togglePlay();await until(()=>!engine.audioEl.paused,'bottom playback');await wait(3200);bottomTextVisible('during playback after controls hide');
+check(modeModal.classList.contains('controls-hidden'),'bottom playback hides only controls');
+check(lyricBody.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}),'bottom text remains painted while controls hidden');engine.audioEl.pause();engine.audioEl.loop=false;
+frame.style.width='390px';frame.style.height='844px';await wait(150);bottomTextVisible('portrait after scrolled side');
+frame.style.width='1000px';frame.style.height='700px';await wait(150);await clickMode();await clickMode();
+await db2.Lyrics.save(video.id,originalLyrics);engine.refreshCurrentSong(video);await until(()=>lyricBody.children.length===3,'restore initial lyrics');await wait(100);
+check(lyricBody.parentElement===visuals,'side mode restores original flex host');modeIs('side','default landscape side');check(modeButton.textContent==='Bottom subtitles','side button announces bottom');
 await clickMode();modeIs('bottom','landscape side to bottom');check(modeButton.textContent==='Turn off subtitles','bottom button announces off');
 modePrefs.setPlayerButtons({subtitles:false});modeIs('bottom','hiding button preserves bottom mode');check(modeButton.hidden,'bottom subtitle button visibility preference');modePrefs.setPlayerButtons({});
 const bottomRect=videoRect();await clickMode();modeIs('off','landscape bottom to off');equalRect(bottomRect,videoRect(),'landscape bottom/off identical video rectangle');
