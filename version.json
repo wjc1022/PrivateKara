@@ -1,8 +1,9 @@
 {
-  "version": "2.2.2",
-  "build": 2,
+  "version": "2.2.3",
+  "build": 3,
   "releaseDate": "2026-11-05",
   "changelog": [
+    "Narrow video lyrics to clamp(180px, 25cqw, 280px) while retaining the 656 CSS px split threshold",
     "Remove fullscreen control and dedicated orientation/rotation fallback while preserving immersive video playback"
   ]
 }
