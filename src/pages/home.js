@@ -61,13 +61,13 @@ export async function renderHome(container, { onImportRequested }) {
   if (recentSongs.length) {
     container.appendChild(el("h2", { class: "section-label" }, t("home.recentlyPlayed")));
     const list = el("div", { class: "song-list" });
-    recentSongs.forEach((song) => list.appendChild(buildRow(song, recentSongs)));
+    recentSongs.forEach((song) => list.appendChild(buildRow(song, allSongs)));
     container.appendChild(list);
   } else {
     container.appendChild(el("h2", { class: "section-label" }, t("library.title")));
     const librarySongs = allSongs.slice().sort((a, b) => b.dateAdded - a.dateAdded);
     const list = el("div", { class: "song-list" });
-    librarySongs.forEach((song) => list.appendChild(buildRow(song, librarySongs)));
+    librarySongs.forEach((song) => list.appendChild(buildRow(song, allSongs)));
     container.appendChild(list);
   }
 
