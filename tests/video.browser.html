@@ -202,6 +202,10 @@ const pictureTarget=d.querySelector('#videoHost');
 tap(pictureTarget);check(!modal.classList.contains('controls-hidden'),'picture touch shows controls');
 tap(pictureTarget);check(modal.classList.contains('controls-hidden'),'picture touch hides controls');
 const playingBefore=!engine.audioEl.paused;tap(d.querySelector('#videoHost'));check(!modal.classList.contains('controls-hidden')&&!engine.audioEl.paused&&playingBefore,'tap wakes without toggling playback');
+function pictureClick(detail){pictureTarget.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,button:0,detail,clientX:100,clientY:100}));}
+pictureClick(1);pictureClick(1);check(engine.audioEl.paused,'touch-style double click pauses video');
+await wait(320);pictureClick(1);pictureClick(2);await until(()=>!engine.audioEl.paused,'double click resume');check(!modal.classList.contains('controls-hidden'),'double click resumes video and reveals controls');
+check(w.getComputedStyle(pictureTarget).touchAction==='manipulation','video disables double-tap zoom without disabling pan');
 engine.audioEl.pause();await wait(3150);check(!modal.classList.contains('controls-hidden'),'paused controls stay visible');
 if(engine.audioEl.paused)engine.togglePlay();await until(()=>!engine.audioEl.paused,"service play");tap(more);await wait(3150);check(!modal.classList.contains('controls-hidden'),'open more keeps controls visible');tap(more);
 tap(d.querySelector('#sheetQueueBtn'));await wait(3150);check(!modal.classList.contains('controls-hidden'),'open queue keeps controls visible');tap(d.querySelector('#sheetQueueBtn'));

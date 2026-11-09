@@ -396,6 +396,7 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 .player-sheet-close{ position:absolute; top:10px; right:14px; background:rgba(255,255,255,0.08); }
 [dir="rtl"] .player-sheet-close{ right:auto; left:14px; }
 
+#videoHost{ touch-action:manipulation; }
 .player-sheet-meta{ text-align:center; margin-bottom:22px; width:100%; }
 .player-sheet-title{ font-size:20px; font-weight:800; margin-bottom:4px; }
 .player-sheet-artist{ font-size:14px; color:var(--text-dim); }

@@ -68,6 +68,7 @@ export function initPlayerSheet() {
 
   let isDragging = false;
   let dragPointerId;
+  let lastVideoClick;
   const landscape = matchMedia('(orientation: landscape)');
   const controls = $('.player-sheet-controls'), secondary = $('.player-sheet-secondary-row');
   const subtitlesBtn = el('button',{class:'sheet-pill-btn',id:'sheetSubtitlesBtn','data-i18n':'player.hideSubtitles'},t('player.hideSubtitles'));
@@ -188,11 +189,23 @@ export function initPlayerSheet() {
   modal.addEventListener('pointerdown',e=>{
     keyboardFocus=false;
     if(!e.target.closest('#sheetMorePanel,#sheetMoreBtn,.sheet-panel,#sheetQueueBtn')) dismissMenus();
-    if(!e.target.closest('#videoHost')) reveal();
+    if(!e.target.closest('#videoHost')) { lastVideoClick=undefined; reveal(); }
   },true);
-  // Use click alone so a touch and its synthesized click toggle only once.
-  videoHost.addEventListener('click',()=>{
+  // Count clicks, not pointer events plus compatibility clicks. Touch clicks may
+  // each have detail=1, so use time and distance rather than native dblclick.
+  videoHost.addEventListener('click',e=>{
     if(!isLandscapeVideo() || isDragging) return;
+    if(e.button !== 0) return;
+    const previous=lastVideoClick;
+    lastVideoClick=undefined;
+    if(e.detail>0 && previous && (e.detail===2 || e.timeStamp-previous.time<=300) &&
+       Math.hypot(e.clientX-previous.x,e.clientY-previous.y)<=32) {
+      e.preventDefault();
+      togglePlay();
+      reveal();
+      return;
+    }
+    if(e.detail>0) lastVideoClick={time:e.timeStamp,x:e.clientX,y:e.clientY};
     if(modal.classList.contains('controls-hidden')) reveal();
     else hideControls();
   });
@@ -219,6 +232,7 @@ export function initPlayerSheet() {
   }
 
   function close() {
+    lastVideoClick=undefined;
     endDrag({pointerId:dragPointerId});
     dismissMenus();keyboardFocus=false;clearTimeout(hideTimer);
     modal.classList.remove('controls-hidden');
@@ -303,6 +317,7 @@ export function initPlayerSheet() {
   favBtn.addEventListener("click", () => { const s = getCurrentSong(); if (s) toggleFavorite(s); });
 
   on("trackchange", (song) => {
+    lastVideoClick=undefined;
     clearTimeout(errorTimer);
     errorToast.classList.remove("visible");
     endDrag({pointerId:dragPointerId});

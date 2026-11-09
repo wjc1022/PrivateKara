@@ -34,22 +34,31 @@ test('secondary buttons, non-primary touch and capture failure do not start drag
  const h=harness();h.fire('pointerdown',60,1,{button:2});h.fire('pointerdown',60,1,{isPrimary:false});h.failCapture();h.fire('pointerdown');h.fire('pointerup');assert.deepEqual(h.seeks,[]);assert.equal(h.reveals,0);
 });
 // Run the production visibility routines and event registration against a fake clock.
-test('picture click toggles once; controls do not toggle; dragging suspends and restores the 3s timer',()=>{
+test('picture click toggles once; double click toggles playback; controls do not toggle; dragging suspends and restores the 3s timer',()=>{
  const handlers={},hidden=new Set(),timers=new Map();let serial=0;
  const node=()=>({inert:false,hidden:true});const controls=node(),secondary=node(),progressTrack=node(),morePanel=node(),queuePanel=node();
  const modal={classList:{contains:n=>n==='open'||hidden.has(n),add:n=>hidden.add(n),remove:n=>hidden.delete(n)},addEventListener:(n,fn)=>handlers[n]=fn};
  const videoHost={addEventListener:(n,fn)=>handlers['picture-'+n]=fn};
  const audioEl={paused:false};
- const c={modal,videoHost,audioEl,controls,secondary,progressTrack,morePanel,queuePanel,moreBtn:{setAttribute(){}},getCurrentSong:()=>({mediaType:'video'}),clearTimeout:id=>timers.delete(id),setTimeout:(fn,ms)=>{assert.equal(ms,3000);timers.set(++serial,fn);return serial;}};
+ const c={modal,videoHost,audioEl,controls,secondary,progressTrack,morePanel,queuePanel,moreBtn:{setAttribute(){}},togglePlay:()=>{audioEl.paused=!audioEl.paused;},getCurrentSong:()=>({mediaType:'video'}),clearTimeout:id=>timers.delete(id),setTimeout:(fn,ms)=>{assert.equal(ms,3000);timers.set(++serial,fn);return serial;}};
  const start=source.indexOf('  function isLandscapeVideo()'),end=source.indexOf('  function layoutButtons()',start);
  const events=source.slice(source.indexOf("  modal.addEventListener('pointerdown'"),source.indexOf("  modal.addEventListener('keydown'"));
- vm.runInNewContext('let hideTimer,keyboardFocus=false,isDragging=false;'+source.slice(start,end)+events+';globalThis.drag=v=>{isDragging=v;reveal();};globalThis.show=reveal;',c);
+ vm.runInNewContext('let hideTimer,lastVideoClick,keyboardFocus=false,isDragging=false;'+source.slice(start,end)+events+';globalThis.drag=v=>{isDragging=v;reveal();};globalThis.show=reveal;',c);
  const picture={target:{closest:s=>s==='#videoHost'}};const control={target:{closest:()=>false}};
- c.show();assert.equal(timers.size,1);handlers.pointerdown(picture);handlers['picture-click']();assert.ok(hidden.has('controls-hidden'));assert.equal(timers.size,0);
- handlers.pointerdown(picture);handlers['picture-click']();assert.ok(!hidden.has('controls-hidden'));assert.equal(timers.size,1);
+ c.show();assert.equal(timers.size,1);handlers.pointerdown(picture);handlers['picture-click']({button:0,detail:0});assert.ok(hidden.has('controls-hidden'));assert.equal(timers.size,0);
+ handlers.pointerdown(picture);handlers['picture-click']({button:0,detail:0});assert.ok(!hidden.has('controls-hidden'));assert.equal(timers.size,1);
  handlers.pointerdown(control);assert.ok(!hidden.has('controls-hidden'));assert.equal(timers.size,1);
  c.drag(true);assert.equal(timers.size,0);c.drag(false);assert.equal(timers.size,1);[...timers.values()][0]();assert.ok(hidden.has('controls-hidden'));
  audioEl.paused=true;c.show();assert.equal(timers.size,0);assert.ok(!hidden.has('controls-hidden'));
+ const click=(time,x=100,detail=1)=>handlers['picture-click']({button:0,detail,timeStamp:time,clientX:x,clientY:100,preventDefault(){}});
+ click(100);assert.equal(audioEl.paused,true);click(250,110);assert.equal(audioEl.paused,false);assert.ok(!hidden.has('controls-hidden'));
+ click(600);click(750);assert.equal(audioEl.paused,true);
+ click(1200);click(1600);assert.equal(audioEl.paused,true); // too slow
+ click(2000,100);click(2100,200);assert.equal(audioEl.paused,true); // too far
+ click(2500);handlers.pointerdown(control);click(2600);assert.equal(audioEl.paused,true);
+ c.drag(true);click(2700);assert.equal(audioEl.paused,true);c.drag(false);
+ click(3000);click(3500,100,2);assert.equal(audioEl.paused,false); // mouse detail=2, no dblclick listener
+
 });
 
 test('seek while metadata is loading still submits the final ratio to the engine',()=>{const h=harness();h.audioEl.duration=NaN;h.fire('pointerdown');h.fire('pointermove',80);assert.deepEqual(h.seeks,[]);h.fire('pointerup',80);assert.deepEqual(h.seeks,[.7]);});
