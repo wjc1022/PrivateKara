@@ -285,7 +285,7 @@ try {
   // Synthetic pointer delivery exercises app handlers; native pointer capture
   // requires trusted OS input, so only capture is stubbed in this harness.
   track.setPointerCapture=()=>{};track.releasePointerCapture=()=>{};
-  function drag(ratios){const r=track.getBoundingClientRect();ratios.forEach((ratio,i)=>track.dispatchEvent(new w.PointerEvent(i?'pointermove':'pointerdown',{pointerId:1,clientX:r.left+r.width*ratio})));track.dispatchEvent(new w.PointerEvent('pointerup',{pointerId:1}));}
+  function drag(ratios){const r=track.getBoundingClientRect();ratios.forEach((ratio,i)=>track.dispatchEvent(new w.PointerEvent(i?'pointermove':'pointerdown',{isPrimary:true,pointerId:1,clientX:r.left+r.width*ratio})));track.dispatchEvent(new w.PointerEvent('pointerup',{isPrimary:true,pointerId:1,clientX:r.left+r.width*ratios.at(-1)}));}
 
   for(const rollback of [false,true]) {
     if(rollback) {await engine.switchVariant('vocals');engine.refreshCurrentSong({...longSong,instrumentalBlob:new w.Blob(['broken'])});}

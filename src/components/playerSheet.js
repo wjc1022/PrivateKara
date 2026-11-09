@@ -68,6 +68,7 @@ export function initPlayerSheet() {
 
   let isDragging = false;
   let dragPointerId;
+  let lastVideoClick;
   const landscape = matchMedia('(orientation: landscape)');
   const controls = $('.player-sheet-controls'), secondary = $('.player-sheet-secondary-row');
   const subtitlesBtn = el('button',{class:'sheet-pill-btn',id:'sheetSubtitlesBtn','data-i18n':'player.hideSubtitles'},t('player.hideSubtitles'));
@@ -84,10 +85,12 @@ export function initPlayerSheet() {
     clearTimeout(hideTimer);modal.classList.remove('controls-hidden');
     for(const node of [controls,secondary,progressTrack,morePanel]) node.inert=false;
     if(!isLandscapeVideo() || audioEl.paused || isDragging || !queuePanel.hidden || !morePanel.hidden || keyboardFocus) return;
-    hideTimer=setTimeout(()=>{
-      modal.classList.add('controls-hidden');
-      for(const node of [controls,secondary,progressTrack,morePanel]) node.inert=true;
-    },3000);
+    hideTimer=setTimeout(hideControls,3000);
+  }
+  function hideControls() {
+    clearTimeout(hideTimer);
+    modal.classList.add('controls-hidden');
+    for(const node of [controls,secondary,progressTrack,morePanel]) node.inert=true;
   }
   function dismissMenus() { morePanel.hidden=true;moreBtn.setAttribute('aria-expanded','false');queuePanel.hidden=true; }
   function layoutButtons() {
@@ -186,9 +189,27 @@ export function initPlayerSheet() {
   modal.addEventListener('pointerdown',e=>{
     keyboardFocus=false;
     if(!e.target.closest('#sheetMorePanel,#sheetMoreBtn,.sheet-panel,#sheetQueueBtn')) dismissMenus();
-    reveal();
+    if(!e.target.closest('#videoHost')) { lastVideoClick=undefined; reveal(); }
   },true);
-  modal.addEventListener('pointermove',e=>{if(e.pointerType==='mouse')reveal();});
+  // Count clicks, not pointer events plus compatibility clicks. Touch clicks may
+  // each have detail=1, so use time and distance rather than native dblclick.
+  videoHost.addEventListener('click',e=>{
+    if(!isLandscapeVideo() || isDragging) return;
+    if(e.button !== 0) return;
+    const previous=lastVideoClick;
+    lastVideoClick=undefined;
+    if(e.detail>0 && previous && (e.detail===2 || e.timeStamp-previous.time<=300) &&
+       Math.hypot(e.clientX-previous.x,e.clientY-previous.y)<=32) {
+      e.preventDefault();
+      togglePlay();
+      reveal();
+      return;
+    }
+    if(e.detail>0) lastVideoClick={time:e.timeStamp,x:e.clientX,y:e.clientY};
+    if(modal.classList.contains('controls-hidden')) reveal();
+    else hideControls();
+  });
+  modal.addEventListener('pointermove',e=>{if(e.pointerType==='mouse' && !e.target.closest('#videoHost'))reveal();});
   modal.addEventListener('keydown',()=>{keyboardFocus=true;reveal();});
   const focusSelector='.player-sheet-controls,.player-sheet-secondary-row,.sheet-more-panel,#sheetProgressTrack,.sheet-panel';
   document.addEventListener('keydown',e=>{if(e.key==='Tab') { keyboardFocus=true; if(isLandscapeVideo()) reveal(); }},true);
@@ -211,6 +232,7 @@ export function initPlayerSheet() {
   }
 
   function close() {
+    lastVideoClick=undefined;
     endDrag({pointerId:dragPointerId});
     dismissMenus();keyboardFocus=false;clearTimeout(hideTimer);
     modal.classList.remove('controls-hidden');
@@ -295,6 +317,7 @@ export function initPlayerSheet() {
   favBtn.addEventListener("click", () => { const s = getCurrentSong(); if (s) toggleFavorite(s); });
 
   on("trackchange", (song) => {
+    lastVideoClick=undefined;
     clearTimeout(errorTimer);
     errorToast.classList.remove("visible");
     endDrag({pointerId:dragPointerId});
@@ -321,38 +344,42 @@ export function initPlayerSheet() {
     seekTo(Math.max(0, Math.min(1, time / audioEl.duration)));
     updateProgressUI(audioEl.currentTime, audioEl.duration);
   });
-  // ---- seek (pointer drag, same pattern as the mini player) ----
+  // Capture tracks outside the visible bar; only pointerup commits a seek.
   function ratioFromEvent(e) {
     const rect = progressTrack.getBoundingClientRect();
     return Math.min(1, Math.max(0, (e.clientX-rect.left)/rect.width));
   }
   progressTrack.addEventListener("pointerdown", (e) => {
+    if (isDragging || e.isPrimary === false || e.button !== 0) return;
+    e.preventDefault();
+    try { progressTrack.setPointerCapture(e.pointerId); } catch { return; }
     isDragging = true;
     dragPointerId = e.pointerId;
     reveal();
     progressTrack.classList.add("dragging");
-    progressTrack.setPointerCapture(e.pointerId);
     const ratio = ratioFromEvent(e);
     if (Number.isFinite(audioEl.duration)) updateProgressUI(ratio * audioEl.duration, audioEl.duration);
-    seekTo(ratio);
   });
   progressTrack.addEventListener("pointermove", (e) => {
-    if (!isDragging) return;
+    if (!isDragging || e.pointerId !== dragPointerId) return;
     const ratio = ratioFromEvent(e);
     if (Number.isFinite(audioEl.duration)) updateProgressUI(ratio * audioEl.duration, audioEl.duration);
-    seekTo(ratio);
   });
   function endDrag(e) {
-    if (!isDragging) return;
+    if (!isDragging || e.pointerId !== dragPointerId) return;
+    const commit = e.type === 'pointerup';
     isDragging = false;
-    reveal();
+    dragPointerId = undefined;
     progressTrack.classList.remove("dragging");
     try { progressTrack.releasePointerCapture(e.pointerId); } catch { /* already released */ }
-    dragPointerId = undefined;
+    if (commit) seekTo(ratioFromEvent(e));
+    updateProgressUI(audioEl.currentTime, audioEl.duration);
+    reveal();
   }
   progressTrack.addEventListener("pointerup", endDrag);
   progressTrack.addEventListener("pointercancel", endDrag);
   progressTrack.addEventListener("lostpointercapture", endDrag);
+  progressTrack.addEventListener("click", e => e.stopPropagation());
 
   variantBtn.addEventListener("click", async () => {
     if (!hasInstrumental()) return;

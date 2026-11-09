@@ -396,6 +396,7 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 .player-sheet-close{ position:absolute; top:10px; right:14px; background:rgba(255,255,255,0.08); }
 [dir="rtl"] .player-sheet-close{ right:auto; left:14px; }
 
+#videoHost{ touch-action:manipulation; }
 .player-sheet-meta{ text-align:center; margin-bottom:22px; width:100%; }
 .player-sheet-title{ font-size:20px; font-weight:800; margin-bottom:4px; }
 .player-sheet-artist{ font-size:14px; color:var(--text-dim); }
@@ -404,6 +405,8 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
   position:relative; width:100%; height:5px; border-radius:4px; background:rgba(255,255,255,0.1);
   cursor:pointer; touch-action:none; transition:height .15s var(--ease);
 }
+/* Expand upward without moving the visual bar or covering transport below. */
+.player-sheet-progress-track::before{ content:""; position:absolute; left:0; right:0; bottom:0; height:40px; }
 .player-sheet-progress-track.dragging{ height:8px; }
 .player-sheet-progress-fill{ position:relative; height:100%; border-radius:4px; width:0%; background:linear-gradient(90deg, var(--yellow-deep), var(--yellow)); transition:width .1s linear; }
 .player-sheet-progress-track.dragging .player-sheet-progress-fill{ transition:none; }
