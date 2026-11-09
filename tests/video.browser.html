@@ -36,7 +36,7 @@ const sheetNode=d.querySelector('.player-sheet'),lyricBody=d.querySelector('#lyr
 function typography(label){
  const lines=[...d.querySelectorAll('.lyric-line')],baseline=w.getComputedStyle(lines[0]);
  check(lines.length>=3&&lines.every(line=>{const cs=w.getComputedStyle(line);return cs.fontSize==='18px'&&['fontSize','fontWeight','lineHeight','transform'].every(k=>cs[k]===baseline[k]);}),'identical fixed 18px lyric typography '+label);
- check(baseline.transform==='none','no lyric scaling '+label);
+ check(baseline.transform==='none'&&baseline.fontWeight==='600'&&baseline.webkitTextStrokeWidth==='0px'&&baseline.textShadow==='none','unchanged side lyric weight, stroke, shadow and scale '+label);
 }
 function usableWidth(){const cs=w.getComputedStyle(sheetNode);return sheetNode.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);}
 function layout(label){
@@ -101,7 +101,9 @@ check(lyricBody.getBoundingClientRect().top>=pictureBottom,'non-overlap uses act
 check(Math.abs(lyricBody.getBoundingClientRect().top-pictureBottom)<1.1,'portrait subtitles immediately follow actual picture');
 check(w.getComputedStyle(lyricBody).pointerEvents==='none'&&Number(w.getComputedStyle(d.querySelector('.player-sheet-controls')).zIndex)>Number(w.getComputedStyle(lyricBody).zIndex),'controls layer above noninteractive subtitles');
 check(w.getComputedStyle(currentBottom).webkitTextSizeAdjust==='100%','bottom prevents independent iOS text inflation');
-check(w.getComputedStyle(currentBottom).lineHeight==='27px','bottom uses compact 1.5 line height without changing side typography');
+const bottomShadowOffsets=['-0.6px 0px 0px','0.6px 0px 0px','0px -0.6px 0px','0px 0.6px 0px','-0.6px -0.6px 0px','0.6px -0.6px 0px','-0.6px 0.6px 0px','0.6px 0.6px 0px','0px 1px 4px'];
+check([currentBottom,nextBottom].every(line=>{const cs=w.getComputedStyle(line);return cs.fontSize==='22.5px'&&cs.fontWeight==='600'&&cs.webkitTextStrokeWidth==='0px'&&cs.textShadow===bottomShadowOffsets.map(offset=>'rgb(0, 0, 0) '+offset).join(', ');}),'bottom current/next use 25% larger type, weight 600, eight-direction black shadow outline and soft shadow');
+check(w.getComputedStyle(currentBottom).lineHeight==='33.75px','bottom keeps compact 1.5 line height without changing side typography');
 const playLayerButton=d.querySelector('#sheetPlayBtn'),playLayerRect=playLayerButton.getBoundingClientRect();lyricBody.style.pointerEvents='auto';
 check(d.elementFromPoint(playLayerRect.left+playLayerRect.width/2,playLayerRect.top+playLayerRect.height/2)?.closest('#sheetPlayBtn')===playLayerButton,'controls stay on top even if subtitle hit testing is enabled');lyricBody.style.removeProperty('pointer-events');
 check(Number(w.getComputedStyle(d.querySelector('#sheetMorePanel')).zIndex)>Number(w.getComputedStyle(playLayerButton.parentElement).zIndex),'menus remain above controls');
@@ -116,12 +118,12 @@ for(const [pw,ph] of [[768,1024],[820,1180]]){
  const pr=videoRect();await clickMode();equalRect(pr,videoRect(),'wide portrait bottom/off identical '+pw);await clickMode();
 }
 frame.style.width='1000px';frame.style.height='390px';await wait(150);modeIs('bottom','landscape remembers bottom');
-check(lyricBody.getBoundingClientRect().height<=54.01&&w.getComputedStyle(lyricBody).overflowY==='hidden','overlap caps region at two text line heights');
+check(Math.abs(lyricBody.getBoundingClientRect().height-67.5)<.1&&w.getComputedStyle(lyricBody).overflowY==='hidden','overlap caps region at two text line heights');
 check(w.getComputedStyle(currentBottom).whiteSpace==='pre-wrap'&&w.getComputedStyle(currentBottom).overflowWrap==='anywhere'&&w.getComputedStyle(currentBottom).textOverflow!=='ellipsis','bottom keeps natural wrapping without ellipsis');
 engine.seekTo(.1);await until(()=>!engine.audioEl.seeking,'bottom enhanced seek');await wait(100);
 const bottomWords=lyricBody.querySelector('.current').querySelectorAll('.lyric-word');check(bottomWords[0].classList.contains('active')&&!bottomWords[1].classList.contains('sung'),'bottom Enhanced LRC word state');
 engine.seekTo(.98);await until(()=>!engine.audioEl.seeking,'bottom final seek');await wait(100);
-check(!lyricBody.querySelector('.next')&&Math.abs(parseFloat(w.getComputedStyle(lyricBody,'::after').height)-27)<.02,'absent next retains blank second text slot');
+check(!lyricBody.querySelector('.next')&&Math.abs(parseFloat(w.getComputedStyle(lyricBody,'::after').height)-33.75)<.02,'absent next retains blank second text slot');
 d.querySelector('#playerSheetClose').click();d.querySelector('#miniExpand').click();await wait(100);modeIs('bottom','close/reopen retains bottom');
 await clickMode();await clickMode();modeIs('side','restore side for existing width regression checks');
 frame.style.width='1000px';frame.style.height='700px';await wait(150);
@@ -225,10 +227,10 @@ await engine.selectSong(tallSongs[0],[tallSongs[0]]);engine.audioEl.pause();awai
 frame.style.width='390px';frame.style.height='844px';await wait(150);modeIs('bottom','track switch preserves portrait bottom');
 check(engine.audioEl.videoWidth===180&&engine.audioEl.videoHeight===320,'actual tall video metadata');
 const tallHost=d.querySelector('#videoHost').getBoundingClientRect(),tallScale=Math.min(tallHost.width/180,tallHost.height/320),tallPictureBottom=tallHost.top+(tallHost.height+320*tallScale)/2;
-check(tallPictureBottom>lyricBody.getBoundingClientRect().top&&lyricBody.getBoundingClientRect().height<=54.01,'tall portrait overlays video when below-picture space before footer is insufficient');
+check(tallPictureBottom>lyricBody.getBoundingClientRect().top&&lyricBody.getBoundingClientRect().height<=67.51,'tall portrait overlays video when below-picture space before footer is insufficient');
 check(lyricBody.getBoundingClientRect().bottom<=d.querySelector('#sheetProgressTrack').getBoundingClientRect().top+.1,'tall portrait keeps subtitles above transport');
 const tallBottom=videoRect();await clickMode();equalRect(tallBottom,videoRect(),'tall media bottom/off identical video geometry');await clickMode();
-frame.style.width='1000px';frame.style.height='600px';await wait(100);tap(sub);await wait(100);modeIs('bottom','select bottom for empty lyric regression');check(lyricBody.getBoundingClientRect().height<=54.01,'tall landscape overlap caps at compact two-line height');
+frame.style.width='1000px';frame.style.height='600px';await wait(100);tap(sub);await wait(100);modeIs('bottom','select bottom for empty lyric regression');check(lyricBody.getBoundingClientRect().height<=67.51,'tall landscape overlap caps at compact two-line height');
 const bare=songs.find(s=>s.title==='local-video');await engine.selectSong(bare,songs);await until(()=>!d.querySelector('.lyric-line'),'no lyrics');check(w.getComputedStyle(d.querySelector('#lyricsBody')).display==='none','no lyrics gives video available width');
 modeIs('bottom','no lyrics preserves chosen mode');check(!lyricBody.querySelector('.current')&&!lyricBody.querySelector('.next')&&lyricBody.textContent.includes(i18n.t('lyrics.noLyrics')),'no lyrics retains existing feedback DOM without stale overlay');
 const emptyBottom=videoRect();tap(sub);await wait(100);equalRect(emptyBottom,videoRect(),'missing lyrics bottom/off geometry unchanged');tap(sub);await wait(100);
