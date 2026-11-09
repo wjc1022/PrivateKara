@@ -719,14 +719,18 @@ main{ padding:6px 16px calc(var(--mini-h) + 34px); min-height:100vh; }
 /* One bottom overlay in both orientations. Absolute placement leaves the
    contain video host identical to off mode; controls retain their own layer. */
 .has-video.subtitles-bottom #lyricsBody{
+  font-size:22.5px;
   display:block;position:absolute;left:var(--safe-left);right:var(--safe-right);
   bottom:var(--safe-bottom,env(safe-area-inset-bottom));width:auto;
   margin:0;padding:0;min-height:0;max-height:3em;overflow:hidden;line-height:1.5;
   -webkit-text-size-adjust:100%;text-size-adjust:100%;
   pointer-events:none;z-index:2;scroll-behavior:auto;background:transparent;border-radius:0;
-  text-align:center;text-shadow:0 1px 4px #000;
+  text-align:center;text-shadow:
+    -.6px 0 #000,.6px 0 #000,0 -.6px #000,0 .6px #000,
+    -.6px -.6px #000,.6px -.6px #000,-.6px .6px #000,.6px .6px #000,
+    0 1px 4px #000;
 }
-.has-video.subtitles-bottom #lyricsBody .lyric-line{display:none;padding:0;max-width:none;line-height:inherit}
+.has-video.subtitles-bottom #lyricsBody .lyric-line{display:none;padding:0;max-width:none;font-size:inherit;line-height:inherit}
 .has-video.subtitles-bottom #lyricsBody .lyric-line:is(.current,.next){display:block}
 .has-video.subtitles-bottom #lyricsBody:not(:has(.current))::before,
 .has-video.subtitles-bottom #lyricsBody:not(:has(.next))::after{content:'';display:block;height:1.5em}
