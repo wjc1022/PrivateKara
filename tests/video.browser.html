@@ -31,7 +31,10 @@ check([...d.querySelectorAll('#page-home .song-row')].every(row=>row.querySelect
 const video=songs.find(s=>s.title==='with-lyrics');await engine.selectSong(video,songs);await until(()=>engine.audioEl.readyState>=2&&!engine.audioEl.paused,'play');
 check(engine.audioEl.tagName==='VIDEO'&&d.querySelectorAll('video,audio').length===1,'one shared media element');
 await until(()=>d.querySelector('.lyric-line'),'lyrics');engine.audioEl.pause();engine.seekTo(.4);await until(()=>!engine.audioEl.seeking,'seek');check(engine.audioEl.currentTime>0.5,'seek uses video currentTime');
-const track=d.querySelector('#sheetProgressTrack');track.setPointerCapture=()=>{};const rect=track.getBoundingClientRect();track.dispatchEvent(new w.PointerEvent('pointerdown',{clientX:rect.left+rect.width*.6,pointerId:1}));track.dispatchEvent(new w.PointerEvent('pointerup',{pointerId:1}));await until(()=>!engine.audioEl.seeking,'pointer seek');check(engine.audioEl.currentTime>1,'player progress pointer seeks video');
+const track=d.querySelector('#sheetProgressTrack');track.setPointerCapture=()=>{};const rect=track.getBoundingClientRect();track.dispatchEvent(new w.PointerEvent('pointerdown',{clientX:rect.left+rect.width*.6,isPrimary:true,pointerId:1}));track.dispatchEvent(new w.PointerEvent('pointerup',{clientX:rect.left+rect.width*.6,isPrimary:true,pointerId:1}));await until(()=>!engine.audioEl.seeking,'pointer seek');check(engine.audioEl.currentTime>1,'player progress pointer seeks video');
+const hitRect=track.getBoundingClientRect();
+check(w.getComputedStyle(track,'::before').height==='40px','transparent seek target is 40 CSS px');
+check(d.elementFromPoint(hitRect.left+hitRect.width*.5,hitRect.bottom-35)===track,'upper transparent seek target receives hits');
 const sheetNode=d.querySelector('.player-sheet'),lyricBody=d.querySelector('#lyricsBody'),visuals=d.querySelector('.player-visuals');
 function typography(label){
  const lines=[...d.querySelectorAll('.lyric-line')],baseline=w.getComputedStyle(lines[0]);
@@ -164,7 +167,7 @@ check(w.getComputedStyle(engine.audioEl).objectFit==='contain','original aspect 
 // Controls contract: actual layout/media with synthetic pointer/keyboard events.
 const modal=d.querySelector('#playerSheetModal'),sub=d.querySelector('#sheetSubtitlesBtn'),more=d.querySelector('#sheetMoreBtn');
 const pref=await w.eval('import("/src/services/playerPreferences.js")');
-function tap(node){node.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',pointerId:4}));node.click();}
+function tap(node){node.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',isPrimary:true,pointerId:4}));node.click();}
 layout('immersive landscape');
 check(Math.abs(lr.width-Math.max(180,Math.min(usableWidth()*.25,280)))<1,'immersive player uses new lyric clamp');
 check(Math.abs(d.querySelector('.player-sheet-controls').getBoundingClientRect().right-vr.right)<2,'shared control/sidebar boundary');
@@ -192,13 +195,17 @@ d.querySelector('#resetPlayerButtons').click();check(pref.buttonKeys.every(k=>pr
 check(d.querySelector('#sheetVariantBtn').hidden,'default visibility cannot override video variant rule');
 engine.setShuffle(false);while(engine.getRepeatMode()!=='off')await engine.cycleRepeatMode();
 frame.style.width='390px';frame.style.height='320px';await wait(120);check(!more.hidden,'auto-hide menu checks use visible overflow button');
-engine.audioEl.loop=true;engine.seekTo(0);if(engine.audioEl.paused)engine.togglePlay();await until(()=>!engine.audioEl.paused,"service play");tap(d.querySelector('#videoHost'));
+engine.audioEl.loop=true;engine.seekTo(0);if(engine.audioEl.paused)engine.togglePlay();await until(()=>!engine.audioEl.paused,"service play");if(modal.classList.contains('controls-hidden'))tap(d.querySelector('#videoHost'));
 await wait(3250);check(modal.classList.contains('controls-hidden')&&d.querySelector('.player-sheet-controls').inert,'idle playing hides controls and exits focus order');
+const pictureTarget=d.querySelector('#videoHost');
+// One touch pointerdown plus compatibility click must produce one toggle.
+tap(pictureTarget);check(!modal.classList.contains('controls-hidden'),'picture touch shows controls');
+tap(pictureTarget);check(modal.classList.contains('controls-hidden'),'picture touch hides controls');
 const playingBefore=!engine.audioEl.paused;tap(d.querySelector('#videoHost'));check(!modal.classList.contains('controls-hidden')&&!engine.audioEl.paused&&playingBefore,'tap wakes without toggling playback');
 engine.audioEl.pause();await wait(3150);check(!modal.classList.contains('controls-hidden'),'paused controls stay visible');
 if(engine.audioEl.paused)engine.togglePlay();await until(()=>!engine.audioEl.paused,"service play");tap(more);await wait(3150);check(!modal.classList.contains('controls-hidden'),'open more keeps controls visible');tap(more);
 tap(d.querySelector('#sheetQueueBtn'));await wait(3150);check(!modal.classList.contains('controls-hidden'),'open queue keeps controls visible');tap(d.querySelector('#sheetQueueBtn'));
-track.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,clientX:rect.left+rect.width*.5,pointerId:1,pointerType:'touch'}));await wait(3150);check(!modal.classList.contains('controls-hidden'),'drag keeps controls visible');track.dispatchEvent(new w.PointerEvent('pointercancel',{pointerId:1}));
+track.dispatchEvent(new w.PointerEvent('pointerdown',{bubbles:true,clientX:rect.left+rect.width*.5,isPrimary:true,pointerId:1,pointerType:'touch'}));await wait(3150);check(!modal.classList.contains('controls-hidden'),'drag keeps controls visible');track.dispatchEvent(new w.PointerEvent('pointercancel',{isPrimary:true,pointerId:1}));
 track.focus();track.dispatchEvent(new w.KeyboardEvent('keydown',{bubbles:true,key:'ArrowRight'}));await wait(3150);check(!modal.classList.contains('controls-hidden'),'keyboard control focus keeps visible');
 d.querySelector('#playerSheetClose').focus();tap(d.querySelector('#videoHost'));await wait(3150);check(modal.classList.contains('controls-hidden'),'after interaction ends idle timer restarts');
 frame.style.width='390px';frame.style.height='844px';await wait(120);check(!modal.classList.contains('controls-hidden')&&modal.classList.contains('subtitles-bottom'),'resize clears hidden state and restores portrait bottom preference');
